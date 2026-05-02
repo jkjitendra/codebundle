@@ -7,13 +7,13 @@ import type {
   PreparedExportSummary,
   PrepareExportConfigFailure,
   PrepareExportConfigResult
-} from "../renderer/lib/types";
+} from "../shared/types";
 import { assertRelativePathInside, assertSafeProjectRoot, isDangerousProjectRoot, isPathInside } from "./pathSecurity";
 
 const VALID_FORMATS = new Set(["markdown", "text"]);
 const VALID_MODES = new Set(["selected", "include", "all"]);
 
-class InvalidExportConfigError extends Error {
+export class InvalidExportConfigError extends Error {
   constructor(details: string) {
     super(details);
     this.name = "InvalidExportConfigError";
@@ -22,9 +22,7 @@ class InvalidExportConfigError extends Error {
 
 export async function prepareExportConfig(input: unknown): Promise<PrepareExportConfigResult> {
   try {
-    const config = await validateExportConfig(input);
-    const tempConfigPath = join(tmpdir(), `codebundle-${randomUUID()}.codebundle.tmp.json`);
-    await writeFile(tempConfigPath, `${JSON.stringify(config, null, 2)}\n`, "utf8");
+    const { config, tempConfigPath } = await writeValidatedExportConfig(input);
 
     return {
       success: true,
@@ -34,6 +32,15 @@ export async function prepareExportConfig(input: unknown): Promise<PrepareExport
   } catch (error) {
     return invalidConfigResult(error instanceof Error ? error.message : "Unknown export config error");
   }
+}
+
+export async function writeValidatedExportConfig(
+  input: unknown
+): Promise<{ config: CodeBundleExportConfig; tempConfigPath: string; summary: PreparedExportSummary }> {
+  const config = await validateExportConfig(input);
+  const tempConfigPath = join(tmpdir(), `codebundle-${randomUUID()}.codebundle.tmp.json`);
+  await writeFile(tempConfigPath, `${JSON.stringify(config, null, 2)}\n`, "utf8");
+  return { config, tempConfigPath, summary: summarizeConfig(config) };
 }
 
 async function validateExportConfig(input: unknown): Promise<CodeBundleExportConfig> {
@@ -143,7 +150,7 @@ async function validateRelativeEntries(projectRoot: string, entries: string[], l
   }
 }
 
-function invalidConfigResult(details: string): PrepareExportConfigFailure {
+export function invalidConfigResult(details: string): PrepareExportConfigFailure {
   return {
     success: false,
     error: {

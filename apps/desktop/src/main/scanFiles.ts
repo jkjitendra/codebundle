@@ -1,7 +1,7 @@
 import { lstat, readdir, readFile, realpath, stat } from "node:fs/promises";
 import { extname, join, relative } from "node:path";
 import type { Dirent } from "node:fs";
-import type { ScanNode, ScanProjectOptions, ScanProjectResult, ScanSummary } from "../renderer/lib/types";
+import type { ScanNode, ScanProjectOptions, ScanProjectResult, ScanSummary } from "../shared/types";
 import { DEFAULT_EXCLUDES } from "./defaultRules";
 import { assertSafeProjectRoot, isPathInside } from "./pathSecurity";
 
