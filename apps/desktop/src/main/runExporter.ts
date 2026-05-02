@@ -4,7 +4,7 @@ import type { Readable } from "node:stream";
 import { access, unlink } from "node:fs/promises";
 import { resolve } from "node:path";
 import type { CodeBundleExportConfig, RunExportFailure, RunExportResult, RunExportSuccess } from "../shared/types";
-import { InvalidExportConfigError, invalidConfigResult, writeValidatedExportConfig } from "./configWriter";
+import { cleanupOldTempConfigs, InvalidExportConfigError, invalidConfigResult, writeValidatedExportConfig } from "./configWriter";
 import { type PythonCommand, resolvePythonExecutable } from "./pythonResolver";
 
 const DEFAULT_TIMEOUT_MS = 120_000;
@@ -21,6 +21,8 @@ export interface RunExporterOptions {
   resolveExporterPythonPath?: () => Promise<string | null>;
   runPython?: (options: RunPythonExporterOptions) => Promise<RunExportResult>;
   cleanupTempConfig?: (tempConfigPath: string) => Promise<void>;
+  cleanupOldTempConfigs?: () => Promise<void>;
+  signal?: AbortSignal;
 }
 
 export interface RunPythonExporterOptions {
@@ -31,20 +33,34 @@ export interface RunPythonExporterOptions {
   cwd?: string;
   env?: NodeJS.ProcessEnv;
   spawnImpl?: typeof spawn;
+  signal?: AbortSignal;
 }
 
 export async function runExporter(input: unknown, options: RunExporterOptions = {}): Promise<RunExportResult> {
   let tempConfigPath: string | null = null;
 
   try {
+    if (options.signal?.aborted) {
+      return exportCancelled();
+    }
+    await (options.cleanupOldTempConfigs ?? cleanupOldTempConfigs)();
+    if (options.signal?.aborted) {
+      return exportCancelled();
+    }
     const prepared = await (options.writeConfig ?? writeValidatedExportConfig)(input);
     tempConfigPath = prepared.tempConfigPath;
 
+    if (options.signal?.aborted) {
+      return exportCancelled();
+    }
     const python = await (options.resolvePython ?? resolvePythonExecutable)();
     if (!python.success) {
       return python;
     }
 
+    if (options.signal?.aborted) {
+      return exportCancelled();
+    }
     const exporterPythonPath = await (options.resolveExporterPythonPath ?? (() => resolveExporterPythonPath()))();
     if (!exporterPythonPath) {
       return failure(
@@ -58,7 +74,8 @@ export async function runExporter(input: unknown, options: RunExporterOptions = 
       executable: python.command.executable,
       args: [...python.command.baseArgs, "-m", "codebundle_exporter", "--config", tempConfigPath],
       exporterPythonPath,
-      timeoutMs: options.timeoutMs ?? DEFAULT_TIMEOUT_MS
+      timeoutMs: options.timeoutMs ?? DEFAULT_TIMEOUT_MS,
+      signal: options.signal
     });
 
     if (result.success) {
@@ -82,6 +99,10 @@ export async function runExporter(input: unknown, options: RunExporterOptions = 
 export async function runPythonExporter(options: RunPythonExporterOptions): Promise<RunExportResult> {
   return new Promise((resolveResult) => {
     const spawnImpl = options.spawnImpl ?? spawn;
+    if (options.signal?.aborted) {
+      resolveResult(exportCancelled());
+      return;
+    }
     const child = spawnImpl(options.executable, options.args, {
       cwd: options.cwd ?? process.cwd(),
       env: {
@@ -95,6 +116,15 @@ export async function runPythonExporter(options: RunPythonExporterOptions): Prom
     let stdout = "";
     let stderr = "";
     let settled = false;
+    const cancelExport = () => {
+      if (settled) {
+        return;
+      }
+      settled = true;
+      clearTimeout(timer);
+      child.kill();
+      resolveResult(exportCancelled());
+    };
     const timer = setTimeout(() => {
       if (settled) {
         return;
@@ -126,12 +156,14 @@ export async function runPythonExporter(options: RunPythonExporterOptions): Prom
       clearTimeout(timer);
       resolveResult(failure("EXPORTER_FAILED", "The Python exporter failed to start.", error.message));
     });
+    options.signal?.addEventListener("abort", cancelExport, { once: true });
     child.on("close", (exitCode) => {
       if (settled) {
         return;
       }
       settled = true;
       clearTimeout(timer);
+      options.signal?.removeEventListener("abort", cancelExport);
       resolveResult(parseExporterResult(stdout, stderr, exitCode));
     });
   });
@@ -244,6 +276,16 @@ function safeDetails(stderr: string, fallback: string): string {
 
 function failure(code: string, message: string, details?: string): RunExportFailure {
   return { success: false, error: { code, message, details } };
+}
+
+function exportCancelled(): RunExportFailure {
+  return {
+    success: false,
+    error: {
+      code: "EXPORT_CANCELLED",
+      message: "Export was cancelled."
+    }
+  };
 }
 
 export async function cleanupTempConfig(tempConfigPath: string): Promise<void> {
