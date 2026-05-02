@@ -7,7 +7,7 @@ import { ProjectPicker } from "./components/ProjectPicker";
 import { WarningPanel } from "./components/WarningPanel";
 import { buildConfigPreview, clearSelection, getSelectionSummary, selectFiles, toggleNodeSelection } from "./lib/selection";
 import { buildFileTree, collectDirectoryPaths, collectExtensions, collectFilePaths, filterTree } from "./lib/treeUtils";
-import type { AppInfo, FileTreeNode, ScanProjectResult } from "./lib/types";
+import type { AppInfo, FileTreeNode, PrepareExportConfigResult, ScanProjectResult } from "./lib/types";
 
 const DEFAULT_MAX_FILE_SIZE_KB = 500;
 
@@ -27,6 +27,8 @@ export default function App(): JSX.Element {
   const [followSymlinks, setFollowSymlinks] = useState(false);
   const [maxFileSizeKb, setMaxFileSizeKb] = useState(DEFAULT_MAX_FILE_SIZE_KB);
   const [isScanning, setIsScanning] = useState(false);
+  const [isPreparingExport, setIsPreparingExport] = useState(false);
+  const [prepareResult, setPrepareResult] = useState<PrepareExportConfigResult | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [warnings, setWarnings] = useState<string[]>([]);
 
@@ -43,6 +45,10 @@ export default function App(): JSX.Element {
   );
   const extensions = useMemo(() => collectExtensions(tree), [tree]);
   const excludePatterns = useMemo(() => parseExcludePatterns(excludeText), [excludeText]);
+  const configExcludePatterns = useMemo(
+    () => [...new Set([...defaultExcludes, ...excludePatterns])],
+    [defaultExcludes, excludePatterns]
+  );
   const selectionSummary = useMemo(() => getSelectionSummary(tree, selectedFiles), [tree, selectedFiles]);
   const outputFormat = outputFile?.toLowerCase().endsWith(".txt") ? "text" : "markdown";
   const configPreview = useMemo(() => {
@@ -55,12 +61,26 @@ export default function App(): JSX.Element {
       format: outputFormat,
       tree,
       selectedFiles,
-      exclude: excludePatterns,
+      exclude: configExcludePatterns,
       maxFileSizeKb,
       respectGitIgnore,
       followSymlinks
     });
-  }, [projectFolder, outputFile, scanResult, outputFormat, tree, selectedFiles, excludePatterns, maxFileSizeKb, respectGitIgnore, followSymlinks]);
+  }, [
+    projectFolder,
+    outputFile,
+    scanResult,
+    outputFormat,
+    tree,
+    selectedFiles,
+    configExcludePatterns,
+    maxFileSizeKb,
+    respectGitIgnore,
+    followSymlinks
+  ]);
+  const canPrepareExport =
+    Boolean(configPreview && (configPreview.mode === "all" || configPreview.include.length > 0 || configPreview.files.length + configPreview.folders.length > 0)) &&
+    !isPreparingExport;
 
   useEffect(() => {
     let isMounted = true;
@@ -97,6 +117,7 @@ export default function App(): JSX.Element {
       if (selectedFolder) {
         setProjectFolder(selectedFolder);
         setScanResult(null);
+        setPrepareResult(null);
         setSelectedFiles(clearSelection());
         setExpandedFolders(new Set());
       }
@@ -111,6 +132,7 @@ export default function App(): JSX.Element {
       const selectedOutput = await window.codeBundle.chooseOutputFile();
       if (selectedOutput) {
         setOutputFile(selectedOutput);
+        setPrepareResult(null);
       }
     } catch (caughtError) {
       setError(caughtError instanceof Error ? caughtError.message : "Unable to choose an output file.");
@@ -136,6 +158,7 @@ export default function App(): JSX.Element {
         allowHomeDirectory
       });
       setScanResult(result);
+      setPrepareResult(null);
       setSelectedFiles(clearSelection());
       setExpandedFolders(new Set(result.nodes.filter((node) => node.type === "directory").map((node) => node.path)));
       setWarnings(result.warnings ?? []);
@@ -168,15 +191,44 @@ export default function App(): JSX.Element {
   }
 
   function toggleSelection(node: FileTreeNode): void {
+    setPrepareResult(null);
     setSelectedFiles((current) => toggleNodeSelection(node, current));
   }
 
   function selectVisibleFiles(): void {
+    setPrepareResult(null);
     setSelectedFiles((current) => selectFiles(collectFilePaths(filteredTree), current));
   }
 
   function deselectAll(): void {
+    setPrepareResult(null);
     setSelectedFiles(clearSelection());
+  }
+
+  async function prepareExportConfig(): Promise<void> {
+    if (!configPreview || !canPrepareExport) {
+      return;
+    }
+
+    setError(null);
+    setPrepareResult(null);
+    setIsPreparingExport(true);
+
+    try {
+      const result = await window.codeBundle.prepareExportConfig(configPreview);
+      setPrepareResult(result);
+    } catch (caughtError) {
+      setPrepareResult({
+        success: false,
+        error: {
+          code: "INVALID_EXPORT_CONFIG",
+          message: "The export config is invalid.",
+          details: caughtError instanceof Error ? caughtError.message : "Unable to prepare export config."
+        }
+      });
+    } finally {
+      setIsPreparingExport(false);
+    }
   }
 
   function expandAllVisible(): void {
@@ -211,7 +263,13 @@ export default function App(): JSX.Element {
             onScanProject={() => void scanSelectedProject()}
           />
           <div style={styles.divider} />
-          <ExportControls outputFile={outputFile} onChooseOutputFile={chooseOutputFile} />
+          <ExportControls
+            outputFile={outputFile}
+            canPrepareExport={canPrepareExport}
+            isPreparingExport={isPreparingExport}
+            onChooseOutputFile={chooseOutputFile}
+            onPrepareExport={() => void prepareExportConfig()}
+          />
           <div style={styles.divider} />
           <section style={styles.options}>
             <label style={styles.fieldLabel}>
@@ -220,7 +278,10 @@ export default function App(): JSX.Element {
                 type="number"
                 min={1}
                 value={maxFileSizeKb}
-                onChange={(event) => setMaxFileSizeKb(Number(event.target.value) || DEFAULT_MAX_FILE_SIZE_KB)}
+                onChange={(event) => {
+                  setPrepareResult(null);
+                  setMaxFileSizeKb(Number(event.target.value) || DEFAULT_MAX_FILE_SIZE_KB);
+                }}
                 style={styles.numberInput}
               />
             </label>
@@ -228,17 +289,33 @@ export default function App(): JSX.Element {
               <input
                 type="checkbox"
                 checked={respectGitIgnore}
-                onChange={(event) => setRespectGitIgnore(event.target.checked)}
+                onChange={(event) => {
+                  setPrepareResult(null);
+                  setRespectGitIgnore(event.target.checked);
+                }}
               />
               Respect .gitignore
             </label>
             <label style={styles.checkLabel}>
-              <input type="checkbox" checked={followSymlinks} onChange={(event) => setFollowSymlinks(event.target.checked)} />
+              <input
+                type="checkbox"
+                checked={followSymlinks}
+                onChange={(event) => {
+                  setPrepareResult(null);
+                  setFollowSymlinks(event.target.checked);
+                }}
+              />
               Follow symlinks
             </label>
           </section>
           <div style={styles.divider} />
-          <ExcludeRulesEditor value={excludeText} onChange={setExcludeText} />
+          <ExcludeRulesEditor
+            value={excludeText}
+            onChange={(value) => {
+              setPrepareResult(null);
+              setExcludeText(value);
+            }}
+          />
           <div style={styles.divider} />
           <ExportSummary
             scanSummary={scanResult?.summary ?? null}
@@ -246,6 +323,7 @@ export default function App(): JSX.Element {
             selectedFoldersCount={selectionSummary.selectedFoldersCount}
             estimatedExportFileCount={selectionSummary.estimatedExportFileCount}
             configPreview={configPreview}
+            prepareResult={prepareResult}
           />
         </section>
 

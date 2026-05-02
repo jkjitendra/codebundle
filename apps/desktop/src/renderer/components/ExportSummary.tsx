@@ -1,4 +1,4 @@
-import type { CodeBundleConfigPreview, ScanSummary } from "../lib/types";
+import type { CodeBundleConfigPreview, PrepareExportConfigResult, ScanSummary } from "../lib/types";
 
 interface ExportSummaryProps {
   scanSummary: ScanSummary | null;
@@ -6,6 +6,7 @@ interface ExportSummaryProps {
   selectedFoldersCount: number;
   estimatedExportFileCount: number;
   configPreview: CodeBundleConfigPreview | null;
+  prepareResult: PrepareExportConfigResult | null;
 }
 
 export function ExportSummary({
@@ -13,7 +14,8 @@ export function ExportSummary({
   selectedFilesCount,
   selectedFoldersCount,
   estimatedExportFileCount,
-  configPreview
+  configPreview,
+  prepareResult
 }: ExportSummaryProps): JSX.Element {
   return (
     <section style={styles.section}>
@@ -28,6 +30,24 @@ export function ExportSummary({
           Scanned {scanSummary.totalFiles} files and {scanSummary.totalFolders} folders. Skipped{" "}
           {scanSummary.skippedFiles} files.
         </div>
+      ) : null}
+      {prepareResult ? (
+        prepareResult.success ? (
+          <div style={styles.successBox}>
+            <strong>Config prepared</strong>
+            <span>Temp config: {prepareResult.tempConfigPath}</span>
+            <span>Output file: {prepareResult.summary.outputFile}</span>
+            <span>
+              Files {prepareResult.summary.filesCount}, folders {prepareResult.summary.foldersCount}, excludes{" "}
+              {prepareResult.summary.excludeCount}
+            </span>
+          </div>
+        ) : (
+          <div style={styles.errorBox}>
+            <strong>{prepareResult.error.code}</strong>
+            <span>{prepareResult.error.details}</span>
+          </div>
+        )
       ) : null}
       {configPreview ? (
         <details style={styles.details}>
@@ -86,6 +106,30 @@ const styles = {
     color: "#596477",
     fontSize: 13,
     lineHeight: 1.45
+  },
+  successBox: {
+    display: "grid",
+    gap: 5,
+    padding: 12,
+    border: "1px solid #a8d7c1",
+    borderRadius: 6,
+    background: "#f0fbf5",
+    color: "#1c5c43",
+    fontSize: 12,
+    lineHeight: 1.45,
+    overflowWrap: "anywhere"
+  },
+  errorBox: {
+    display: "grid",
+    gap: 5,
+    padding: 12,
+    border: "1px solid #efb5b5",
+    borderRadius: 6,
+    background: "#fff4f4",
+    color: "#8a2b2b",
+    fontSize: 12,
+    lineHeight: 1.45,
+    overflowWrap: "anywhere"
   },
   details: {
     display: "grid",

@@ -1,5 +1,6 @@
 import { app, dialog, ipcMain } from "electron";
 import { DEFAULT_EXCLUDES } from "./defaultRules";
+import { prepareExportConfig } from "./configWriter";
 import { scanProject } from "./scanFiles";
 
 export function registerIpcHandlers(): void {
@@ -36,6 +37,8 @@ export function registerIpcHandlers(): void {
   ipcMain.handle("codebundle:get-default-excludes", () => [...DEFAULT_EXCLUDES]);
 
   ipcMain.handle("codebundle:scan-project", async (_event, options) => scanProject(options));
+
+  ipcMain.handle("codebundle:prepare-export-config", async (_event, config) => prepareExportConfig(config));
 
   ipcMain.handle("codebundle:get-app-info", () => ({
     name: app.getName(),

@@ -81,10 +81,41 @@ export interface CodeBundleConfigPreview {
   followSymlinks: boolean;
 }
 
+export type CodeBundleExportConfig = CodeBundleConfigPreview;
+
+export interface PreparedExportSummary {
+  projectRoot: string;
+  outputFile: string;
+  format: "markdown" | "text";
+  mode: "selected" | "include" | "all";
+  filesCount: number;
+  foldersCount: number;
+  excludeCount: number;
+  maxFileSizeKb: number;
+}
+
+export interface PrepareExportConfigSuccess {
+  success: true;
+  tempConfigPath: string;
+  summary: PreparedExportSummary;
+}
+
+export interface PrepareExportConfigFailure {
+  success: false;
+  error: {
+    code: "INVALID_EXPORT_CONFIG";
+    message: "The export config is invalid.";
+    details: string;
+  };
+}
+
+export type PrepareExportConfigResult = PrepareExportConfigSuccess | PrepareExportConfigFailure;
+
 export interface CodeBundleApi {
   chooseProjectFolder: () => Promise<string | null>;
   chooseOutputFile: () => Promise<string | null>;
   scanProject: (options: ScanProjectOptions) => Promise<ScanProjectResult>;
+  prepareExportConfig: (config: CodeBundleExportConfig) => Promise<PrepareExportConfigResult>;
   getDefaultExcludes: () => Promise<string[]>;
   getAppInfo: () => Promise<AppInfo>;
 }

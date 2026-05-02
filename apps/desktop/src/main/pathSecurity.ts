@@ -57,3 +57,20 @@ export function assertSafeProjectRoot(inputPath: string, allowHomeDirectory = fa
 
   return normalized;
 }
+
+export function assertRelativePathInside(projectRoot: string, relativePath: string, label: string): string {
+  if (typeof relativePath !== "string" || relativePath.length === 0) {
+    throw new Error(`${label} entries must be non-empty relative paths`);
+  }
+
+  if (isAbsolute(relativePath)) {
+    throw new Error(`${label} entries must be relative paths`);
+  }
+
+  const candidate = resolve(projectRoot, relativePath);
+  if (!isPathInside(projectRoot, candidate)) {
+    throw new Error(`${label} entry escapes projectRoot: ${relativePath}`);
+  }
+
+  return candidate;
+}
