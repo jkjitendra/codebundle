@@ -2,8 +2,11 @@ import { app, dialog, ipcMain, shell } from "electron";
 import { isAbsolute } from "node:path";
 import { DEFAULT_EXCLUDES } from "./defaultRules";
 import { prepareExportConfig } from "./configWriter";
+import { readPreferences, savePreferences } from "./preferences";
 import { runExporter } from "./runExporter";
 import { scanProject } from "./scanFiles";
+
+let currentExportController: AbortController | null = null;
 
 export function registerIpcHandlers(): void {
   ipcMain.handle("codebundle:choose-project-folder", async () => {
@@ -42,7 +45,45 @@ export function registerIpcHandlers(): void {
 
   ipcMain.handle("codebundle:prepare-export-config", async (_event, config) => prepareExportConfig(config));
 
-  ipcMain.handle("codebundle:run-export", async (_event, config) => runExporter(config));
+  ipcMain.handle("codebundle:run-export", async (_event, config) => {
+    if (currentExportController) {
+      return {
+        success: false,
+        error: {
+          code: "EXPORT_IN_PROGRESS",
+          message: "An export is already running."
+        }
+      };
+    }
+
+    currentExportController = new AbortController();
+    try {
+      return await runExporter(config, { signal: currentExportController.signal });
+    } finally {
+      currentExportController = null;
+    }
+  });
+
+  ipcMain.handle("codebundle:cancel-export", () => {
+    if (!currentExportController) {
+      return {
+        success: false,
+        error: {
+          code: "EXPORT_CANCELLED",
+          message: "No export is currently running."
+        }
+      };
+    }
+
+    currentExportController.abort();
+    return {
+      success: false,
+      error: {
+        code: "EXPORT_CANCELLED",
+        message: "Export was cancelled."
+      }
+    };
+  });
 
   ipcMain.handle("codebundle:reveal-path", (_event, path) => {
     if (typeof path !== "string" || path.length === 0 || !isAbsolute(path)) {
@@ -75,4 +116,10 @@ export function registerIpcHandlers(): void {
     name: app.getName(),
     version: app.getVersion()
   }));
+
+  ipcMain.handle("codebundle:get-preferences", async () => readPreferences(app.getPath("userData")));
+
+  ipcMain.handle("codebundle:save-preferences", async (_event, preferences) =>
+    savePreferences(app.getPath("userData"), preferences)
+  );
 }
