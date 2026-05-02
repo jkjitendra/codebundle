@@ -7,7 +7,14 @@ import { ProjectPicker } from "./components/ProjectPicker";
 import { WarningPanel } from "./components/WarningPanel";
 import { buildConfigPreview, clearSelection, getSelectionSummary, selectFiles, toggleNodeSelection } from "./lib/selection";
 import { buildFileTree, collectDirectoryPaths, collectExtensions, collectFilePaths, filterTree } from "./lib/treeUtils";
-import type { AppInfo, FileTreeNode, PrepareExportConfigResult, RunExportResult, ScanProjectResult } from "./lib/types";
+import type {
+  AppInfo,
+  CodeBundlePreferences,
+  FileTreeNode,
+  PrepareExportConfigResult,
+  RunExportResult,
+  ScanProjectResult
+} from "./lib/types";
 
 const DEFAULT_MAX_FILE_SIZE_KB = 500;
 
@@ -32,6 +39,9 @@ export default function App(): JSX.Element {
   const [prepareResult, setPrepareResult] = useState<PrepareExportConfigResult | null>(null);
   const [exportResult, setExportResult] = useState<RunExportResult | null>(null);
   const [revealError, setRevealError] = useState<string | null>(null);
+  const [copyStatus, setCopyStatus] = useState<string | null>(null);
+  const [exportStatus, setExportStatus] = useState<string | null>(null);
+  const [preferencesLoaded, setPreferencesLoaded] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [warnings, setWarnings] = useState<string[]>([]);
 
@@ -92,18 +102,27 @@ export default function App(): JSX.Element {
 
     async function loadBridgeData(): Promise<void> {
       try {
-        const [rules, info] = await Promise.all([
+        const [rules, info, preferences] = await Promise.all([
           window.codeBundle.getDefaultExcludes(),
-          window.codeBundle.getAppInfo()
+          window.codeBundle.getAppInfo(),
+          window.codeBundle.getPreferences()
         ]);
 
         if (isMounted) {
           setDefaultExcludes(rules);
           setAppInfo(info);
+          setProjectFolder(preferences.recentProjectFolder);
+          setOutputFile(preferences.recentOutputFile);
+          setMaxFileSizeKb(preferences.maxFileSizeKb);
+          setRespectGitIgnore(preferences.respectGitIgnore);
+          setFollowSymlinks(preferences.followSymlinks);
+          setExcludeText(preferences.excludeText);
+          setPreferencesLoaded(true);
         }
       } catch (caughtError) {
         if (isMounted) {
           setError(caughtError instanceof Error ? caughtError.message : "Unable to read desktop app bridge data.");
+          setPreferencesLoaded(true);
         }
       }
     }
@@ -115,6 +134,21 @@ export default function App(): JSX.Element {
     };
   }, []);
 
+  useEffect(() => {
+    if (!preferencesLoaded) {
+      return;
+    }
+
+    void window.codeBundle.savePreferences({
+      recentProjectFolder: projectFolder,
+      recentOutputFile: outputFile,
+      maxFileSizeKb,
+      respectGitIgnore,
+      followSymlinks,
+      excludeText
+    });
+  }, [preferencesLoaded, projectFolder, outputFile, maxFileSizeKb, respectGitIgnore, followSymlinks, excludeText]);
+
   async function chooseProjectFolder(): Promise<void> {
     setError(null);
     try {
@@ -125,6 +159,7 @@ export default function App(): JSX.Element {
         setPrepareResult(null);
         setExportResult(null);
         setRevealError(null);
+        setCopyStatus(null);
         setSelectedFiles(clearSelection());
         setExpandedFolders(new Set());
       }
@@ -142,6 +177,7 @@ export default function App(): JSX.Element {
         setPrepareResult(null);
         setExportResult(null);
         setRevealError(null);
+        setCopyStatus(null);
       }
     } catch (caughtError) {
       setError(caughtError instanceof Error ? caughtError.message : "Unable to choose an output file.");
@@ -170,6 +206,7 @@ export default function App(): JSX.Element {
       setPrepareResult(null);
       setExportResult(null);
       setRevealError(null);
+      setCopyStatus(null);
       setSelectedFiles(clearSelection());
       setExpandedFolders(new Set(result.nodes.filter((node) => node.type === "directory").map((node) => node.path)));
       setWarnings(result.warnings ?? []);
@@ -205,6 +242,7 @@ export default function App(): JSX.Element {
     setPrepareResult(null);
     setExportResult(null);
     setRevealError(null);
+    setCopyStatus(null);
     setSelectedFiles((current) => toggleNodeSelection(node, current));
   }
 
@@ -212,6 +250,7 @@ export default function App(): JSX.Element {
     setPrepareResult(null);
     setExportResult(null);
     setRevealError(null);
+    setCopyStatus(null);
     setSelectedFiles((current) => selectFiles(collectFilePaths(filteredTree), current));
   }
 
@@ -219,6 +258,7 @@ export default function App(): JSX.Element {
     setPrepareResult(null);
     setExportResult(null);
     setRevealError(null);
+    setCopyStatus(null);
     setSelectedFiles(clearSelection());
   }
 
@@ -257,12 +297,18 @@ export default function App(): JSX.Element {
     setPrepareResult(null);
     setExportResult(null);
     setRevealError(null);
+    setCopyStatus(null);
     setIsExporting(true);
+    setExportStatus("Preparing config...");
 
     try {
+      setExportStatus("Resolving Python...");
+      await new Promise((resolve) => window.setTimeout(resolve, 0));
+      setExportStatus("Running exporter...");
       const result = await window.codeBundle.runExport(configPreview);
       setExportResult(result);
       setRevealError(null);
+      setExportStatus(result.success ? "Export complete." : null);
     } catch (caughtError) {
       setExportResult({
         success: false,
@@ -272,9 +318,18 @@ export default function App(): JSX.Element {
           details: caughtError instanceof Error ? caughtError.message : "Unknown export error."
         }
       });
+      setExportStatus(null);
     } finally {
       setIsExporting(false);
     }
+  }
+
+  async function cancelExport(): Promise<void> {
+    setExportStatus("Cancelling export...");
+    const result = await window.codeBundle.cancelExport();
+    setExportResult(result);
+    setIsExporting(false);
+    setExportStatus(null);
   }
 
   function expandAllVisible(): void {
@@ -286,6 +341,16 @@ export default function App(): JSX.Element {
     const result = await window.codeBundle.revealPath(path);
     if (!result.success) {
       setRevealError(result.error.details ?? result.error.message);
+    }
+  }
+
+  async function copyOutputPath(path: string): Promise<void> {
+    setCopyStatus(null);
+    try {
+      await navigator.clipboard.writeText(path);
+      setCopyStatus("Output path copied.");
+    } catch {
+      setCopyStatus("Could not copy output path.");
     }
   }
 
@@ -323,9 +388,11 @@ export default function App(): JSX.Element {
             canRunExport={canRunExport}
             isPreparingExport={isPreparingExport}
             isExporting={isExporting}
+            exportStatus={exportStatus}
             onChooseOutputFile={chooseOutputFile}
             onPrepareExport={() => void prepareExportConfig()}
             onRunExport={() => void runExport()}
+            onCancelExport={() => void cancelExport()}
           />
           <div style={styles.divider} />
           <section style={styles.options}>
@@ -339,6 +406,7 @@ export default function App(): JSX.Element {
                   setPrepareResult(null);
                   setExportResult(null);
                   setRevealError(null);
+                  setCopyStatus(null);
                   setMaxFileSizeKb(Number(event.target.value) || DEFAULT_MAX_FILE_SIZE_KB);
                 }}
                 style={styles.numberInput}
@@ -352,6 +420,7 @@ export default function App(): JSX.Element {
                   setPrepareResult(null);
                   setExportResult(null);
                   setRevealError(null);
+                  setCopyStatus(null);
                   setRespectGitIgnore(event.target.checked);
                 }}
               />
@@ -365,6 +434,7 @@ export default function App(): JSX.Element {
                   setPrepareResult(null);
                   setExportResult(null);
                   setRevealError(null);
+                  setCopyStatus(null);
                   setFollowSymlinks(event.target.checked);
                 }}
               />
@@ -378,6 +448,7 @@ export default function App(): JSX.Element {
               setPrepareResult(null);
               setExportResult(null);
               setRevealError(null);
+              setCopyStatus(null);
               setExcludeText(value);
             }}
           />
@@ -391,7 +462,9 @@ export default function App(): JSX.Element {
             prepareResult={prepareResult}
             exportResult={exportResult}
             revealError={revealError}
+            copyStatus={copyStatus}
             onRevealOutput={(path) => void revealOutput(path)}
+            onCopyOutput={(path) => void copyOutputPath(path)}
           />
         </section>
 
@@ -469,6 +542,7 @@ function parseExcludePatterns(value: string): string[] {
 function cleanScannerError(message: string): string {
   return message.replace(/^Error invoking remote method '[^']+': Error: /, "");
 }
+
 
 const styles = {
   shell: {
