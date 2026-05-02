@@ -1,17 +1,23 @@
 interface ExportControlsProps {
   outputFile: string | null;
   canPrepareExport: boolean;
+  canRunExport: boolean;
   isPreparingExport: boolean;
+  isExporting: boolean;
   onChooseOutputFile: () => void;
   onPrepareExport: () => void;
+  onRunExport: () => void;
 }
 
 export function ExportControls({
   outputFile,
   canPrepareExport,
+  canRunExport,
   isPreparingExport,
+  isExporting,
   onChooseOutputFile,
-  onPrepareExport
+  onPrepareExport,
+  onRunExport
 }: ExportControlsProps): JSX.Element {
   return (
     <section style={styles.section}>
@@ -28,14 +34,22 @@ export function ExportControls({
       <div style={styles.actions}>
         <button
           type="button"
+          style={canRunExport ? styles.runButton : styles.disabledButton}
+          disabled={!canRunExport || isExporting}
+          onClick={onRunExport}
+        >
+          {isExporting ? "Exporting..." : "Run Export"}
+        </button>
+        <button
+          type="button"
           style={canPrepareExport ? styles.prepareButton : styles.disabledButton}
-          disabled={!canPrepareExport || isPreparingExport}
+          disabled={!canPrepareExport || isPreparingExport || isExporting}
           onClick={onPrepareExport}
         >
           {isPreparingExport ? "Preparing..." : "Prepare Export"}
         </button>
       </div>
-      <p style={styles.note}>This phase writes a validated temp config only. Python export is not run yet.</p>
+      <p style={styles.note}>Run Export invokes the local Python exporter. Prepare Export only writes a debug temp config.</p>
     </section>
   );
 }
@@ -92,7 +106,9 @@ const styles = {
   },
   actions: {
     display: "flex",
-    justifyContent: "flex-end"
+    justifyContent: "flex-end",
+    gap: 8,
+    flexWrap: "wrap"
   },
   disabledButton: {
     height: 42,
@@ -104,6 +120,17 @@ const styles = {
     fontSize: 14,
     fontWeight: 700,
     cursor: "not-allowed"
+  },
+  runButton: {
+    height: 42,
+    padding: "0 18px",
+    border: "1px solid #25334a",
+    borderRadius: 6,
+    background: "#25334a",
+    color: "#ffffff",
+    fontSize: 14,
+    fontWeight: 700,
+    cursor: "pointer"
   },
   prepareButton: {
     height: 42,

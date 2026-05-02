@@ -1,4 +1,4 @@
-import type { CodeBundleConfigPreview, PrepareExportConfigResult, ScanSummary } from "../lib/types";
+import type { CodeBundleConfigPreview, PrepareExportConfigResult, RunExportResult, ScanSummary } from "../lib/types";
 
 interface ExportSummaryProps {
   scanSummary: ScanSummary | null;
@@ -7,6 +7,9 @@ interface ExportSummaryProps {
   estimatedExportFileCount: number;
   configPreview: CodeBundleConfigPreview | null;
   prepareResult: PrepareExportConfigResult | null;
+  exportResult: RunExportResult | null;
+  revealError: string | null;
+  onRevealOutput: (path: string) => void;
 }
 
 export function ExportSummary({
@@ -15,7 +18,10 @@ export function ExportSummary({
   selectedFoldersCount,
   estimatedExportFileCount,
   configPreview,
-  prepareResult
+  prepareResult,
+  exportResult,
+  revealError,
+  onRevealOutput
 }: ExportSummaryProps): JSX.Element {
   return (
     <section style={styles.section}>
@@ -46,6 +52,32 @@ export function ExportSummary({
           <div style={styles.errorBox}>
             <strong>{prepareResult.error.code}</strong>
             <span>{prepareResult.error.details}</span>
+          </div>
+        )
+      ) : null}
+      {exportResult ? (
+        exportResult.success ? (
+          <div style={styles.successBox}>
+            <strong>Export complete</strong>
+            <span>Output file: {exportResult.outputFile}</span>
+            <span>Exported files: {exportResult.summary.exportedFiles}</span>
+            <span>
+              Skipped binary {exportResult.summary.skippedBinary}, large {exportResult.summary.skippedLarge}, excluded{" "}
+              {exportResult.summary.skippedExcluded}
+            </span>
+            <span>
+              Skipped missing {exportResult.summary.skippedMissing}, invalid {exportResult.summary.skippedInvalid}
+            </span>
+            <button type="button" style={styles.revealButton} onClick={() => onRevealOutput(exportResult.outputFile)}>
+              Reveal Output
+            </button>
+            {revealError ? <span>{revealError}</span> : null}
+          </div>
+        ) : (
+          <div style={styles.errorBox}>
+            <strong>{exportResult.error.code}</strong>
+            <span>{exportResult.error.message}</span>
+            {exportResult.error.details ? <span>{exportResult.error.details}</span> : null}
           </div>
         )
       ) : null}
@@ -130,6 +162,18 @@ const styles = {
     fontSize: 12,
     lineHeight: 1.45,
     overflowWrap: "anywhere"
+  },
+  revealButton: {
+    justifySelf: "start",
+    height: 32,
+    padding: "0 11px",
+    border: "1px solid #1d6f52",
+    borderRadius: 6,
+    background: "#ffffff",
+    color: "#1d6f52",
+    fontSize: 12,
+    fontWeight: 700,
+    cursor: "pointer"
   },
   details: {
     display: "grid",

@@ -9,7 +9,7 @@ export function WarningPanel({ defaultExcludes }: WarningPanelProps): JSX.Elemen
     <aside style={styles.panel}>
       <strong style={styles.title}>Local-first</strong>
       <p style={styles.copy}>CodeBundle runs locally and does not upload files.</p>
-      <p style={styles.copy}>Prepare Export validates and writes a temp JSON config only; it does not run Python yet.</p>
+      <p style={styles.copy}>Run Export calls the local Python CLI with a temporary JSON config.</p>
       <p style={styles.rules}>Default exclusions loaded: {previewRules}</p>
     </aside>
   );
