@@ -3,9 +3,11 @@ import type {
   AppInfo,
   CodeBundleApi,
   CodeBundleExportConfig,
+  CodeBundlePreferences,
   PrepareExportConfigResult,
   RevealPathResult,
   RunExportResult,
+  SavePreferencesResult,
   ScanProjectOptions,
   ScanProjectResult
 } from "../shared/types";
@@ -18,7 +20,11 @@ const api: CodeBundleApi = {
   prepareExportConfig: (config: CodeBundleExportConfig) =>
     ipcRenderer.invoke("codebundle:prepare-export-config", config) as Promise<PrepareExportConfigResult>,
   runExport: (config: CodeBundleExportConfig) => ipcRenderer.invoke("codebundle:run-export", config) as Promise<RunExportResult>,
+  cancelExport: () => ipcRenderer.invoke("codebundle:cancel-export") as Promise<RunExportResult>,
   revealPath: (path: string) => ipcRenderer.invoke("codebundle:reveal-path", path) as Promise<RevealPathResult>,
+  getPreferences: () => ipcRenderer.invoke("codebundle:get-preferences") as Promise<CodeBundlePreferences>,
+  savePreferences: (preferences: CodeBundlePreferences) =>
+    ipcRenderer.invoke("codebundle:save-preferences", preferences) as Promise<SavePreferencesResult>,
   getDefaultExcludes: () => ipcRenderer.invoke("codebundle:get-default-excludes") as Promise<string[]>,
   getAppInfo: () => ipcRenderer.invoke("codebundle:get-app-info") as Promise<AppInfo>
 };
