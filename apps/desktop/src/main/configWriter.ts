@@ -1,5 +1,5 @@
 import { randomUUID } from "node:crypto";
-import { realpath, stat, writeFile } from "node:fs/promises";
+import { readdir, realpath, stat, unlink, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { dirname, isAbsolute, join, resolve } from "node:path";
 import type {
@@ -12,6 +12,8 @@ import { assertRelativePathInside, assertSafeProjectRoot, isDangerousProjectRoot
 
 const VALID_FORMATS = new Set(["markdown", "text"]);
 const VALID_MODES = new Set(["selected", "include", "all"]);
+const TEMP_CONFIG_PATTERN = /^codebundle-.*\.codebundle\.tmp\.json$/;
+const TEMP_CONFIG_MAX_AGE_MS = 24 * 60 * 60 * 1000;
 
 export class InvalidExportConfigError extends Error {
   constructor(details: string) {
@@ -41,6 +43,37 @@ export async function writeValidatedExportConfig(
   const tempConfigPath = join(tmpdir(), `codebundle-${randomUUID()}.codebundle.tmp.json`);
   await writeFile(tempConfigPath, `${JSON.stringify(config, null, 2)}\n`, "utf8");
   return { config, tempConfigPath, summary: summarizeConfig(config) };
+}
+
+export async function cleanupOldTempConfigs(
+  tempDirectory = tmpdir(),
+  now = Date.now(),
+  maxAgeMs = TEMP_CONFIG_MAX_AGE_MS
+): Promise<void> {
+  let entries: string[];
+  try {
+    entries = await readdir(tempDirectory);
+  } catch {
+    return;
+  }
+
+  await Promise.all(
+    entries.map(async (entry) => {
+      if (!TEMP_CONFIG_PATTERN.test(entry)) {
+        return;
+      }
+
+      const fullPath = join(tempDirectory, entry);
+      try {
+        const fileStats = await stat(fullPath);
+        if (now - fileStats.mtimeMs > maxAgeMs) {
+          await unlink(fullPath);
+        }
+      } catch {
+        // Best-effort cleanup only.
+      }
+    })
+  );
 }
 
 async function validateExportConfig(input: unknown): Promise<CodeBundleExportConfig> {

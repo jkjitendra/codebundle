@@ -1,6 +1,7 @@
 import { EventEmitter } from "node:events";
 import { PassThrough } from "node:stream";
 import { describe, expect, it, vi } from "vitest";
+import { cleanupOldTempConfigs } from "../src/main/configWriter";
 import {
   parseExporterResult,
   runExporter,
@@ -131,6 +132,7 @@ describe("runExporter process behavior", () => {
       {},
       {
         writeConfig: async () => ({ config: {} as never, tempConfigPath: "/tmp/config.codebundle.tmp.json" }),
+        cleanupOldTempConfigs: async () => undefined,
         resolvePython: async () => ({ success: true, command: { executable: "python3", baseArgs: [], version: "3.12.0" } }),
         resolveExporterPythonPath: async () => null
       }
@@ -148,6 +150,7 @@ describe("runExporter process behavior", () => {
       {},
       {
         writeConfig: async () => ({ config: {} as never, tempConfigPath: "/tmp/config.codebundle.tmp.json" }),
+        cleanupOldTempConfigs: async () => undefined,
         resolvePython: async () => ({ success: true, command: { executable: "python3", baseArgs: [], version: "3.12.0" } }),
         resolveExporterPythonPath: async () => "/repo/exporter-python",
         runPython: async () => parseExporterResult(successStdout, "", 0),
@@ -157,5 +160,55 @@ describe("runExporter process behavior", () => {
 
     expect(result.success).toBe(true);
     expect(cleanup).toHaveBeenCalledWith("/tmp/config.codebundle.tmp.json");
+  });
+
+  it("handles cancel behavior", async () => {
+    const controller = new AbortController();
+    const child = new EventEmitter() as EventEmitter & {
+      stdout: PassThrough;
+      stderr: PassThrough;
+      kill: ReturnType<typeof vi.fn>;
+    };
+    child.stdout = new PassThrough();
+    child.stderr = new PassThrough();
+    child.kill = vi.fn();
+    const spawnImpl = vi.fn(() => child);
+
+    const promise = runPythonExporter(baseRunOptions({ timeoutMs: 1000, signal: controller.signal, spawnImpl: spawnImpl as never }));
+    controller.abort();
+    const result = await promise;
+
+    expect(result.success).toBe(false);
+    if (!result.success) {
+      expect(result.error.code).toBe("EXPORT_CANCELLED");
+    }
+    expect(child.kill).toHaveBeenCalled();
+  });
+});
+
+describe("temp config cleanup", () => {
+  it("deletes only old CodeBundle temp configs", async () => {
+    const fs = await import("node:fs/promises");
+    const os = await import("node:os");
+    const path = await import("node:path");
+    const tempDirectory = await fs.mkdtemp(path.join(os.tmpdir(), "codebundle-cleanup-test-"));
+    const oldConfig = path.join(tempDirectory, "codebundle-old.codebundle.tmp.json");
+    const newConfig = path.join(tempDirectory, "codebundle-new.codebundle.tmp.json");
+    const unrelated = path.join(tempDirectory, "other.codebundle.tmp.json");
+    const now = Date.now();
+
+    await fs.writeFile(oldConfig, "{}", "utf8");
+    await fs.writeFile(newConfig, "{}", "utf8");
+    await fs.writeFile(unrelated, "{}", "utf8");
+    await fs.utimes(oldConfig, new Date(now - 48 * 60 * 60 * 1000), new Date(now - 48 * 60 * 60 * 1000));
+    await fs.utimes(newConfig, new Date(now), new Date(now));
+    await fs.utimes(unrelated, new Date(now - 48 * 60 * 60 * 1000), new Date(now - 48 * 60 * 60 * 1000));
+
+    await cleanupOldTempConfigs(tempDirectory, now, 24 * 60 * 60 * 1000);
+
+    await expect(fs.access(oldConfig)).rejects.toThrow();
+    await expect(fs.access(newConfig)).resolves.toBeUndefined();
+    await expect(fs.access(unrelated)).resolves.toBeUndefined();
+    await fs.rm(tempDirectory, { recursive: true, force: true });
   });
 });

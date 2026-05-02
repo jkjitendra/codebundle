@@ -1,5 +1,6 @@
 import { app, BrowserWindow } from "electron";
 import { join } from "node:path";
+import { cleanupOldTempConfigs } from "./configWriter";
 import { registerIpcHandlers } from "./ipcHandlers";
 
 let mainWindow: BrowserWindow | null = null;
@@ -29,6 +30,7 @@ function createWindow(): void {
 
 app.whenReady().then(() => {
   registerIpcHandlers();
+  void cleanupOldTempConfigs();
   createWindow();
 
   app.on("activate", () => {
