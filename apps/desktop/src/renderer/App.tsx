@@ -7,7 +7,7 @@ import { ProjectPicker } from "./components/ProjectPicker";
 import { WarningPanel } from "./components/WarningPanel";
 import { buildConfigPreview, clearSelection, getSelectionSummary, selectFiles, toggleNodeSelection } from "./lib/selection";
 import { buildFileTree, collectDirectoryPaths, collectExtensions, collectFilePaths, filterTree } from "./lib/treeUtils";
-import type { AppInfo, FileTreeNode, PrepareExportConfigResult, ScanProjectResult } from "./lib/types";
+import type { AppInfo, FileTreeNode, PrepareExportConfigResult, RunExportResult, ScanProjectResult } from "./lib/types";
 
 const DEFAULT_MAX_FILE_SIZE_KB = 500;
 
@@ -28,7 +28,10 @@ export default function App(): JSX.Element {
   const [maxFileSizeKb, setMaxFileSizeKb] = useState(DEFAULT_MAX_FILE_SIZE_KB);
   const [isScanning, setIsScanning] = useState(false);
   const [isPreparingExport, setIsPreparingExport] = useState(false);
+  const [isExporting, setIsExporting] = useState(false);
   const [prepareResult, setPrepareResult] = useState<PrepareExportConfigResult | null>(null);
+  const [exportResult, setExportResult] = useState<RunExportResult | null>(null);
+  const [revealError, setRevealError] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [warnings, setWarnings] = useState<string[]>([]);
 
@@ -80,7 +83,9 @@ export default function App(): JSX.Element {
   ]);
   const canPrepareExport =
     Boolean(configPreview && (configPreview.mode === "all" || configPreview.include.length > 0 || configPreview.files.length + configPreview.folders.length > 0)) &&
-    !isPreparingExport;
+    !isPreparingExport &&
+    !isExporting;
+  const canRunExport = canPrepareExport;
 
   useEffect(() => {
     let isMounted = true;
@@ -118,6 +123,8 @@ export default function App(): JSX.Element {
         setProjectFolder(selectedFolder);
         setScanResult(null);
         setPrepareResult(null);
+        setExportResult(null);
+        setRevealError(null);
         setSelectedFiles(clearSelection());
         setExpandedFolders(new Set());
       }
@@ -133,6 +140,8 @@ export default function App(): JSX.Element {
       if (selectedOutput) {
         setOutputFile(selectedOutput);
         setPrepareResult(null);
+        setExportResult(null);
+        setRevealError(null);
       }
     } catch (caughtError) {
       setError(caughtError instanceof Error ? caughtError.message : "Unable to choose an output file.");
@@ -159,6 +168,8 @@ export default function App(): JSX.Element {
       });
       setScanResult(result);
       setPrepareResult(null);
+      setExportResult(null);
+      setRevealError(null);
       setSelectedFiles(clearSelection());
       setExpandedFolders(new Set(result.nodes.filter((node) => node.type === "directory").map((node) => node.path)));
       setWarnings(result.warnings ?? []);
@@ -192,16 +203,22 @@ export default function App(): JSX.Element {
 
   function toggleSelection(node: FileTreeNode): void {
     setPrepareResult(null);
+    setExportResult(null);
+    setRevealError(null);
     setSelectedFiles((current) => toggleNodeSelection(node, current));
   }
 
   function selectVisibleFiles(): void {
     setPrepareResult(null);
+    setExportResult(null);
+    setRevealError(null);
     setSelectedFiles((current) => selectFiles(collectFilePaths(filteredTree), current));
   }
 
   function deselectAll(): void {
     setPrepareResult(null);
+    setExportResult(null);
+    setRevealError(null);
     setSelectedFiles(clearSelection());
   }
 
@@ -231,8 +248,45 @@ export default function App(): JSX.Element {
     }
   }
 
+  async function runExport(): Promise<void> {
+    if (!configPreview || !canRunExport) {
+      return;
+    }
+
+    setError(null);
+    setPrepareResult(null);
+    setExportResult(null);
+    setRevealError(null);
+    setIsExporting(true);
+
+    try {
+      const result = await window.codeBundle.runExport(configPreview);
+      setExportResult(result);
+      setRevealError(null);
+    } catch (caughtError) {
+      setExportResult({
+        success: false,
+        error: {
+          code: "EXPORT_FAILED",
+          message: "CodeBundle export failed.",
+          details: caughtError instanceof Error ? caughtError.message : "Unknown export error."
+        }
+      });
+    } finally {
+      setIsExporting(false);
+    }
+  }
+
   function expandAllVisible(): void {
     setExpandedFolders(new Set(collectDirectoryPaths(filteredTree)));
+  }
+
+  async function revealOutput(path: string): Promise<void> {
+    setRevealError(null);
+    const result = await window.codeBundle.revealPath(path);
+    if (!result.success) {
+      setRevealError(result.error.details ?? result.error.message);
+    }
   }
 
   function collapseAll(): void {
@@ -266,9 +320,12 @@ export default function App(): JSX.Element {
           <ExportControls
             outputFile={outputFile}
             canPrepareExport={canPrepareExport}
+            canRunExport={canRunExport}
             isPreparingExport={isPreparingExport}
+            isExporting={isExporting}
             onChooseOutputFile={chooseOutputFile}
             onPrepareExport={() => void prepareExportConfig()}
+            onRunExport={() => void runExport()}
           />
           <div style={styles.divider} />
           <section style={styles.options}>
@@ -280,6 +337,8 @@ export default function App(): JSX.Element {
                 value={maxFileSizeKb}
                 onChange={(event) => {
                   setPrepareResult(null);
+                  setExportResult(null);
+                  setRevealError(null);
                   setMaxFileSizeKb(Number(event.target.value) || DEFAULT_MAX_FILE_SIZE_KB);
                 }}
                 style={styles.numberInput}
@@ -291,6 +350,8 @@ export default function App(): JSX.Element {
                 checked={respectGitIgnore}
                 onChange={(event) => {
                   setPrepareResult(null);
+                  setExportResult(null);
+                  setRevealError(null);
                   setRespectGitIgnore(event.target.checked);
                 }}
               />
@@ -302,6 +363,8 @@ export default function App(): JSX.Element {
                 checked={followSymlinks}
                 onChange={(event) => {
                   setPrepareResult(null);
+                  setExportResult(null);
+                  setRevealError(null);
                   setFollowSymlinks(event.target.checked);
                 }}
               />
@@ -313,6 +376,8 @@ export default function App(): JSX.Element {
             value={excludeText}
             onChange={(value) => {
               setPrepareResult(null);
+              setExportResult(null);
+              setRevealError(null);
               setExcludeText(value);
             }}
           />
@@ -324,6 +389,9 @@ export default function App(): JSX.Element {
             estimatedExportFileCount={selectionSummary.estimatedExportFileCount}
             configPreview={configPreview}
             prepareResult={prepareResult}
+            exportResult={exportResult}
+            revealError={revealError}
+            onRevealOutput={(path) => void revealOutput(path)}
           />
         </section>
 
