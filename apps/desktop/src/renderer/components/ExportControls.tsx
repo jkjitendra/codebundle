@@ -4,9 +4,11 @@ interface ExportControlsProps {
   canRunExport: boolean;
   isPreparingExport: boolean;
   isExporting: boolean;
+  exportStatus: string | null;
   onChooseOutputFile: () => void;
   onPrepareExport: () => void;
   onRunExport: () => void;
+  onCancelExport: () => void;
 }
 
 export function ExportControls({
@@ -15,9 +17,11 @@ export function ExportControls({
   canRunExport,
   isPreparingExport,
   isExporting,
+  exportStatus,
   onChooseOutputFile,
   onPrepareExport,
-  onRunExport
+  onRunExport,
+  onCancelExport
 }: ExportControlsProps): JSX.Element {
   return (
     <section style={styles.section}>
@@ -40,6 +44,11 @@ export function ExportControls({
         >
           {isExporting ? "Exporting..." : "Run Export"}
         </button>
+        {isExporting ? (
+          <button type="button" style={styles.cancelButton} onClick={onCancelExport}>
+            Cancel Export
+          </button>
+        ) : null}
         <button
           type="button"
           style={canPrepareExport ? styles.prepareButton : styles.disabledButton}
@@ -49,6 +58,7 @@ export function ExportControls({
           {isPreparingExport ? "Preparing..." : "Prepare Export"}
         </button>
       </div>
+      {exportStatus ? <p style={styles.status}>{exportStatus}</p> : null}
       <p style={styles.note}>Run Export invokes the local Python exporter. Prepare Export only writes a debug temp config.</p>
     </section>
   );
@@ -142,6 +152,24 @@ const styles = {
     fontSize: 14,
     fontWeight: 700,
     cursor: "pointer"
+  },
+  cancelButton: {
+    height: 42,
+    padding: "0 18px",
+    border: "1px solid #b42318",
+    borderRadius: 6,
+    background: "#ffffff",
+    color: "#b42318",
+    fontSize: 14,
+    fontWeight: 700,
+    cursor: "pointer"
+  },
+  status: {
+    margin: 0,
+    color: "#25334a",
+    fontSize: 13,
+    fontWeight: 700,
+    lineHeight: 1.45
   },
   note: {
     margin: 0,

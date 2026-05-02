@@ -9,7 +9,9 @@ interface ExportSummaryProps {
   prepareResult: PrepareExportConfigResult | null;
   exportResult: RunExportResult | null;
   revealError: string | null;
+  copyStatus: string | null;
   onRevealOutput: (path: string) => void;
+  onCopyOutput: (path: string) => void;
 }
 
 export function ExportSummary({
@@ -21,7 +23,9 @@ export function ExportSummary({
   prepareResult,
   exportResult,
   revealError,
-  onRevealOutput
+  copyStatus,
+  onRevealOutput,
+  onCopyOutput
 }: ExportSummaryProps): JSX.Element {
   return (
     <section style={styles.section}>
@@ -68,10 +72,16 @@ export function ExportSummary({
             <span>
               Skipped missing {exportResult.summary.skippedMissing}, invalid {exportResult.summary.skippedInvalid}
             </span>
-            <button type="button" style={styles.revealButton} onClick={() => onRevealOutput(exportResult.outputFile)}>
-              Reveal Output
-            </button>
+            <div style={styles.actionRow}>
+              <button type="button" style={styles.revealButton} onClick={() => onRevealOutput(exportResult.outputFile)}>
+                Reveal Output
+              </button>
+              <button type="button" style={styles.revealButton} onClick={() => onCopyOutput(exportResult.outputFile)}>
+                Copy output path
+              </button>
+            </div>
             {revealError ? <span>{revealError}</span> : null}
+            {copyStatus ? <span>{copyStatus}</span> : null}
           </div>
         ) : (
           <div style={styles.errorBox}>
@@ -174,6 +184,11 @@ const styles = {
     fontSize: 12,
     fontWeight: 700,
     cursor: "pointer"
+  },
+  actionRow: {
+    display: "flex",
+    flexWrap: "wrap",
+    gap: 8
   },
   details: {
     display: "grid",
