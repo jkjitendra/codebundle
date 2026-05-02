@@ -1,0 +1,31 @@
+{
+  "version": 1,
+  "projectRoot": "/absolute/project/path",
+  "outputFile": "/absolute/output/codebundle-output.md",
+  "format": "markdown",
+  "mode": "selected",
+  "files": [
+    "package.json"
+  ],
+  "folders": [
+    "src",
+    "docs"
+  ],
+  "include": [
+    "src/**/*.ts",
+    "src/**/*.tsx"
+  ],
+  "exclude": [
+    "node_modules/**",
+    ".git/**",
+    ".env",
+    ".env.*",
+    "dist/**",
+    "build/**",
+    "*.log"
+  ],
+  "maxFileSizeKb": 500,
+  "skipBinaryFiles": true,
+  "respectGitIgnore": true,
+  "followSymlinks": false
+}
