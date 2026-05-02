@@ -152,13 +152,40 @@ export interface RevealPathFailure {
 
 export type RevealPathResult = RevealPathSuccess | RevealPathFailure;
 
+export interface CodeBundlePreferences {
+  recentProjectFolder: string | null;
+  recentOutputFile: string | null;
+  maxFileSizeKb: number;
+  respectGitIgnore: boolean;
+  followSymlinks: boolean;
+  excludeText: string;
+}
+
+export interface SavePreferencesSuccess {
+  success: true;
+}
+
+export interface SavePreferencesFailure {
+  success: false;
+  error: {
+    code: "PREFERENCES_SAVE_FAILED";
+    message: string;
+    details?: string;
+  };
+}
+
+export type SavePreferencesResult = SavePreferencesSuccess | SavePreferencesFailure;
+
 export interface CodeBundleApi {
   chooseProjectFolder: () => Promise<string | null>;
   chooseOutputFile: () => Promise<string | null>;
   scanProject: (options: ScanProjectOptions) => Promise<ScanProjectResult>;
   prepareExportConfig: (config: CodeBundleExportConfig) => Promise<PrepareExportConfigResult>;
   runExport: (config: CodeBundleExportConfig) => Promise<RunExportResult>;
+  cancelExport: () => Promise<RunExportResult>;
   revealPath: (path: string) => Promise<RevealPathResult>;
+  getPreferences: () => Promise<CodeBundlePreferences>;
+  savePreferences: (preferences: CodeBundlePreferences) => Promise<SavePreferencesResult>;
   getDefaultExcludes: () => Promise<string[]>;
   getAppInfo: () => Promise<AppInfo>;
 }
