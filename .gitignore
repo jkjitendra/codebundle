@@ -11,3 +11,7 @@ codebundle-output.txt
 *.codebundle.tmp.json
 .DS_Store
 Thumbs.db
+node_modules/
+out/
+release/
+.vite/
