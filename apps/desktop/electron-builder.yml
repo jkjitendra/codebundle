@@ -1,0 +1,21 @@
+appId: com.codebundle.app
+productName: CodeBundle
+directories:
+  output: release
+files:
+  - out/**
+  - package.json
+extraResources:
+  - from: ../../resources/sidecars/current/
+    to: sidecars/
+    filter:
+      - codebundle-exporter*
+mac:
+  target:
+    - dir
+win:
+  target:
+    - dir
+linux:
+  target:
+    - dir
