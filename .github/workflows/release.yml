@@ -118,16 +118,35 @@ jobs:
 
           exit 1
 
-      - name: Upload release artifacts
+      - name: Upload macOS release artifacts
+        if: runner.os == 'macOS'
+        uses: softprops/action-gh-release@v2
+        with:
+          fail_on_unmatched_files: true
+          files: |
+            apps/desktop/release/*.dmg
+            apps/desktop/release/*.zip
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Upload Windows release artifacts
+        if: runner.os == 'Windows'
+        uses: softprops/action-gh-release@v2
+        with:
+          fail_on_unmatched_files: true
+          files: |
+            apps/desktop/release/*.exe
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Upload Linux release artifacts
+        if: runner.os == 'Linux'
         uses: softprops/action-gh-release@v2
         with:
           fail_on_unmatched_files: true
           files: |
             apps/desktop/release/*.AppImage
             apps/desktop/release/*.deb
-            apps/desktop/release/*.dmg
-            apps/desktop/release/*.exe
             apps/desktop/release/*.tar.gz
-            apps/desktop/release/*.zip
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

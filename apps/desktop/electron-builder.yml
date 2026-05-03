@@ -27,6 +27,9 @@ portable:
   artifactName: ${productName}-${version}-Windows-${arch}-Portable.${ext}
 linux:
   icon: build/icons
+  category: Development
+  maintainer: "Jitendra <jkjitendra725@gmail.com>"
+  vendor: jkjitendra
   target:
     - AppImage
     - deb

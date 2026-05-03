@@ -3,7 +3,10 @@
   "version": "0.1.0",
   "private": true,
   "description": "Local-first desktop app for building CodeBundle exports.",
-  "author": "jkjitendra",
+  "author": {
+    "name": "Jitendra",
+    "email": "jkjitendra725@gmail.com"
+  },
   "main": "out/main/index.js",
   "type": "module",
   "scripts": {
