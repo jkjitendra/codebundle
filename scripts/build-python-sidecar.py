@@ -21,6 +21,7 @@ def main() -> int:
     repo_root = Path(__file__).resolve().parents[1]
     exporter_dir = repo_root / "exporter-python"
     package_dir = exporter_dir / "codebundle_exporter"
+    entrypoint_path = repo_root / "scripts" / "codebundle-sidecar-entry.py"
     sidecar_dir = repo_root / "resources" / "sidecars" / "current"
 
     if args.clean:
@@ -29,6 +30,10 @@ def main() -> int:
 
     if not package_dir.is_dir():
         print(f"CodeBundle exporter package was not found: {package_dir}", file=sys.stderr)
+        return 1
+
+    if not entrypoint_path.is_file():
+        print(f"CodeBundle sidecar entrypoint was not found: {entrypoint_path}", file=sys.stderr)
         return 1
 
     if not pyinstaller_available():
@@ -43,8 +48,36 @@ def main() -> int:
     sidecar_name = f"{SIDECAR_BASE_NAME}.exe" if sys.platform.startswith("win") else SIDECAR_BASE_NAME
     sidecar_path = sidecar_dir / sidecar_name
 
-    command = [
-        sys.executable,
+    command = build_pyinstaller_command(
+        python_executable=Path(sys.executable),
+        exporter_dir=exporter_dir,
+        entrypoint_path=entrypoint_path,
+        sidecar_dir=sidecar_dir,
+    )
+
+    print("Building CodeBundle Python sidecar...")
+    print(" ".join(command))
+    completed = subprocess.run(command, cwd=repo_root, check=False)
+    if completed.returncode != 0:
+        return completed.returncode
+
+    if not sidecar_path.exists():
+        print(f"Expected sidecar was not created: {sidecar_path}", file=sys.stderr)
+        return 1
+
+    print(f"Built sidecar: {sidecar_path}")
+    return 0
+
+
+def build_pyinstaller_command(
+    *,
+    python_executable: Path,
+    exporter_dir: Path,
+    entrypoint_path: Path,
+    sidecar_dir: Path,
+) -> list[str]:
+    return [
+        str(python_executable),
         "-m",
         "PyInstaller",
         "--clean",
@@ -59,21 +92,10 @@ def main() -> int:
         str(exporter_dir),
         "--paths",
         str(exporter_dir),
-        str(package_dir / "main.py"),
+        "--collect-submodules",
+        "codebundle_exporter",
+        str(entrypoint_path),
     ]
-
-    print("Building CodeBundle Python sidecar...")
-    print(" ".join(command))
-    completed = subprocess.run(command, cwd=repo_root, check=False)
-    if completed.returncode != 0:
-        return completed.returncode
-
-    if not sidecar_path.exists():
-        print(f"Expected sidecar was not created: {sidecar_path}", file=sys.stderr)
-        return 1
-
-    print(f"Built sidecar: {sidecar_path}")
-    return 0
 
 
 def pyinstaller_available() -> bool:

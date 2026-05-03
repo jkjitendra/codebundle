@@ -66,6 +66,7 @@ stdout contains exactly one JSON object so scripts and the desktop app can parse
 - [Python Exporter Guide](exporter-python/README.md)
 - [Security Notes](docs/security.md)
 - [Desktop Packaging Notes](docs/desktop-packaging.md)
+- [Desktop Security Dependency Upgrade](docs/desktop-security-upgrade.md)
 - [Release Checklist](docs/release-checklist.md)
 - [Website And Netlify Integration](docs/website-netlify-integration.md)
 - [Python Automation Guide](docs/python-automation.md)
@@ -138,7 +139,7 @@ GitHub Actions builds macOS, Windows, and Linux artifacts, builds the platform P
 
 - Production signing, notarization, and installer release flow are not implemented yet.
 - Current CI artifacts are unsigned beta builds.
-- `npm audit` reports Electron, electron-builder build-chain, and Vite/electron-vite advisories that require targeted breaking upgrades before a stable public release.
+- Desktop dependency audit is clean after the Electron/electron-builder/electron-vite/Vite security upgrade. See `docs/desktop-security-upgrade.md`.
 - Sidecars must be built per target OS before packaging.
 - Development mode still needs Python 3.10+ and Node/npm.
 - `.gitignore` support is simple root `.gitignore` pattern support, not full Git-compatible matching.

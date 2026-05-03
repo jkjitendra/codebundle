@@ -137,7 +137,7 @@ Development uses `PYTHONPATH` to make `../../exporter-python` importable.
 ## Known Limitations
 
 - Signing and notarization are not implemented; CI artifacts are unsigned beta builds.
-- `npm audit` reports Electron, electron-builder build-chain, and Vite/electron-vite advisories that require targeted breaking upgrades before a stable public release.
+- Desktop dependency audit is clean after the Electron/electron-builder/electron-vite/Vite security upgrade. See `../../docs/desktop-security-upgrade.md`.
 - Sidecars must be built on the target OS or in platform-specific CI runners.
 - `.gitignore` support is simple and not full Git-compatible matching.
 - Export progress is coarse, not streamed from Python.

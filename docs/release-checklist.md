@@ -94,12 +94,16 @@ Current CI artifacts are unsigned beta artifacts. Before a stable public launch,
 
 Unsigned builds may trigger operating system warnings.
 
-## Current Release Blockers
+## Dependency Audit
 
-`npm audit` reports advisories in Electron, electron-builder's build chain, and Vite/electron-vite. The automated fixes require breaking upgrades:
+Desktop dependency audit is clean after the targeted security upgrade. See `desktop-security-upgrade.md`.
 
-- `electron@41.5.0`
-- `electron-builder@26.8.1`
-- `vite@8.0.10`
+Before publishing a release, rerun:
 
-Do not run `npm audit fix --force` blindly. Treat these as targeted upgrade work before a stable public release, then rerun tests, typecheck, build, sidecar packaging, and packaged export smoke tests.
+```bash
+cd apps/desktop
+npm audit
+npm audit --omit=dev
+```
+
+Do not run `npm audit fix --force` blindly if future advisories appear. Use targeted upgrades, then rerun tests, typecheck, build, sidecar packaging, and packaged export smoke tests.
