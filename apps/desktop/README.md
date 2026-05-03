@@ -60,6 +60,12 @@ npm run sidecar:build
 npm run sidecar:verify
 ```
 
+The sidecar scripts use a Node wrapper that resolves Python in this order:
+
+1. `CODEBUNDLE_PYTHON_PATH`
+2. Windows: `py -3`, `python`, `python3`
+3. macOS/Linux: `python3`, `python`
+
 Create an unpacked package directory:
 
 ```bash

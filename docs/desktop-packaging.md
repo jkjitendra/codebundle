@@ -79,6 +79,12 @@ PyInstaller must be installed in the Python environment used to run the script:
 python -m pip install pyinstaller
 ```
 
+The npm sidecar scripts do not assume a `python` executable exists. They use a Node wrapper that resolves Python in this order:
+
+1. `CODEBUNDLE_PYTHON_PATH`
+2. Windows: `py -3`, `python`, `python3`
+3. macOS/Linux: `python3`, `python`
+
 Do not attempt to build all OS sidecars from one OS. Build sidecars on each target OS or in platform-specific CI runners.
 
 ## Desktop Package Flow

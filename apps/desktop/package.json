@@ -11,9 +11,9 @@
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "preview": "electron-vite preview",
-    "sidecar:build": "python ../../scripts/build-python-sidecar.py",
-    "sidecar:clean": "python ../../scripts/build-python-sidecar.py --clean",
-    "sidecar:verify": "python ../../scripts/verify-python-sidecar.py",
+    "sidecar:build": "node ../../scripts/run-python-script.mjs ../../scripts/build-python-sidecar.py",
+    "sidecar:clean": "node ../../scripts/run-python-script.mjs ../../scripts/build-python-sidecar.py --clean",
+    "sidecar:verify": "node ../../scripts/run-python-script.mjs ../../scripts/verify-python-sidecar.py",
     "package:dir": "npm run build && npm run sidecar:verify && electron-builder --dir",
     "package": "npm run build && npm run sidecar:verify && electron-builder"
   },
