@@ -75,7 +75,7 @@ async function scanDirectory(context: ScanContext, absoluteDirectory: string): P
   for (const entry of entries) {
     const absolutePath = join(absoluteDirectory, entry.name);
     const relativePath = toRelativePath(context.projectRoot, absolutePath);
-    if (!relativePath || isExcluded(relativePath, context.excludePatterns)) {
+    if (!relativePath || isExcludedPath(relativePath, entry.isDirectory(), context.excludePatterns)) {
       if (relativePath) {
         context.summary.skippedFiles += 1;
         context.summary.skippedExcluded += 1;
@@ -196,36 +196,50 @@ async function isProbablyBinary(path: string): Promise<boolean> {
   return controlCount / sample.length > 0.3;
 }
 
-function isExcluded(relativePath: string, patterns: string[]): boolean {
+export function isExcludedPath(relativePath: string, isDirectory: boolean, patterns: readonly string[]): boolean {
   const normalizedPath = normalizeRelativePath(relativePath);
-  return patterns.some((pattern) => matchesGlob(normalizedPath, pattern));
+  return patterns.some((pattern) => matchesGlob(normalizedPath, isDirectory, pattern));
 }
 
-function matchesGlob(relativePath: string, pattern: string): boolean {
+function matchesGlob(relativePath: string, isDirectory: boolean, pattern: string): boolean {
   const normalizedPattern = normalizeRelativePath(pattern);
   if (!normalizedPattern) {
     return false;
   }
 
-  const variants = normalizedPattern.includes("**/")
-    ? [normalizedPattern, normalizedPattern.replaceAll("**/", "")]
-    : [normalizedPattern];
+  const variants = new Set<string>([normalizedPattern]);
+  if (normalizedPattern.includes("**/")) {
+    variants.add(normalizedPattern.replaceAll("**/", ""));
+  }
+  if (normalizedPattern.endsWith("/**")) {
+    variants.add(normalizedPattern.slice(0, -3));
+  }
 
-  return variants.some((variant) => {
+  return [...variants].some((variant) => {
     if (variant.endsWith("/**")) {
       const prefix = variant.slice(0, -3);
-      if (relativePath === prefix || relativePath.startsWith(`${prefix}/`)) {
+      if (matchesDirectoryPrefix(relativePath, prefix)) {
         return true;
       }
     }
 
     if (!variant.includes("/")) {
-      const basename = relativePath.split("/").at(-1) ?? relativePath;
-      return globToRegExp(variant).test(basename);
+      return relativePath.split("/").some((part) => globToRegExp(variant).test(part));
+    }
+
+    if (isDirectory && matchesDirectoryPrefix(relativePath, variant)) {
+      return true;
     }
 
     return globToRegExp(variant).test(relativePath);
   });
+}
+
+function matchesDirectoryPrefix(relativePath: string, prefix: string): boolean {
+  if (relativePath === prefix || relativePath.startsWith(`${prefix}/`)) {
+    return true;
+  }
+  return relativePath.endsWith(`/${prefix}`) || relativePath.includes(`/${prefix}/`);
 }
 
 function globToRegExp(pattern: string): RegExp {

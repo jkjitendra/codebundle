@@ -1,6 +1,7 @@
 interface ProjectPickerProps {
   projectFolder: string | null;
   isScanning: boolean;
+  onProjectFolderChange: (value: string) => void;
   onChooseProjectFolder: () => void;
   onScanProject: () => void;
 }
@@ -8,6 +9,7 @@ interface ProjectPickerProps {
 export function ProjectPicker({
   projectFolder,
   isScanning,
+  onProjectFolderChange,
   onChooseProjectFolder,
   onScanProject
 }: ProjectPickerProps): JSX.Element {
@@ -18,7 +20,13 @@ export function ProjectPicker({
         <p style={styles.copy}>Choose the local folder that will become the export root.</p>
       </div>
       <div style={styles.row}>
-        <div style={styles.pathValue}>{projectFolder ?? "No project folder selected"}</div>
+        <input
+          type="text"
+          value={projectFolder ?? ""}
+          onChange={(event) => onProjectFolderChange(event.target.value)}
+          placeholder="Paste an absolute project folder path"
+          style={styles.pathInput}
+        />
         <button type="button" style={styles.button} onClick={onChooseProjectFolder}>
           Choose Folder
         </button>
@@ -54,10 +62,9 @@ const styles = {
     alignItems: "center",
     gap: 10
   },
-  pathValue: {
-    minHeight: 42,
-    display: "flex",
-    alignItems: "center",
+  pathInput: {
+    height: 42,
+    minWidth: 0,
     overflow: "hidden",
     padding: "0 12px",
     border: "1px solid #d7dce5",
@@ -67,7 +74,8 @@ const styles = {
     fontFamily: "ui-monospace, SFMono-Regular, Menlo, Consolas, monospace",
     fontSize: 12,
     textOverflow: "ellipsis",
-    whiteSpace: "nowrap"
+    whiteSpace: "nowrap",
+    boxSizing: "border-box"
   },
   button: {
     height: 42,

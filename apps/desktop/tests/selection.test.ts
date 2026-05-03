@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   buildConfigPreview,
   createEmptySelection,
+  getNodeSelectionState,
   getSelectionSummary,
   isFileSelected,
   selectPaths,
@@ -228,5 +229,84 @@ describe("selection model", () => {
     expect(selection.selectedFolders).toEqual(new Set(["src"]));
     expect(selection.deselectedFolders).toEqual(new Set(["src/nested"]));
     expect(getSelectionSummary(selection, index).estimatedExportFileCount).toBe(2);
+  });
+
+  it("manually selecting all files in a folder marks the folder checked and compacts to the folder", () => {
+    const tree = sampleTree();
+    const index = buildTreeIndex(tree);
+    let selection = createEmptySelection();
+    selection = toggleFileSelection("src/app.ts", selection, index);
+    selection = toggleFileSelection("src/util.ts", selection, index);
+    selection = toggleFileSelection("src/nested/deep.ts", selection, index);
+
+    expect(getNodeSelectionState(tree[0], selection, index)).toBe("checked");
+    expect(selection.selectedFolders).toEqual(new Set(["src"]));
+    expect(selection.selectedFiles.size).toBe(0);
+  });
+
+  it("manually selecting all child folders and files marks the parent checked", () => {
+    const tree = sampleTree();
+    const index = buildTreeIndex(tree);
+    const nested = (tree[0] as FileTreeDirectoryNode).children[2];
+    let selection = createEmptySelection();
+    selection = toggleNodeSelection(nested, selection, index);
+    selection = toggleFileSelection("src/app.ts", selection, index);
+    selection = toggleFileSelection("src/util.ts", selection, index);
+
+    expect(getNodeSelectionState(tree[0], selection, index)).toBe("checked");
+    expect(selection.selectedFolders).toEqual(new Set(["src"]));
+    expect(selection.selectedFiles.size).toBe(0);
+  });
+
+  it("clicking a folder checked through child selections clears child selections", () => {
+    const tree = sampleTree();
+    const index = buildTreeIndex(tree);
+    let selection = createEmptySelection();
+    selection = toggleFileSelection("src/app.ts", selection, index);
+    selection = toggleFileSelection("src/util.ts", selection, index);
+    selection = toggleFileSelection("src/nested/deep.ts", selection, index);
+    selection = toggleNodeSelection(tree[0], selection, index);
+
+    expect(getNodeSelectionState(tree[0], selection, index)).toBe("unchecked");
+    expect(selection.selectedFiles.size).toBe(0);
+    expect(selection.selectedFolders.size).toBe(0);
+    expect(isFileSelected("src/app.ts", selection, index)).toBe(false);
+  });
+
+  it("selected folder plus deselected child is indeterminate, then reselecting child becomes checked", () => {
+    const tree = sampleTree();
+    const index = buildTreeIndex(tree);
+    let selection = toggleNodeSelection(tree[0], createEmptySelection(), index);
+    selection = toggleFileSelection("src/app.ts", selection, index);
+
+    expect(getNodeSelectionState(tree[0], selection, index)).toBe("indeterminate");
+
+    selection = toggleFileSelection("src/app.ts", selection, index);
+
+    expect(getNodeSelectionState(tree[0], selection, index)).toBe("checked");
+    expect(selection.selectedFolders).toEqual(new Set(["src"]));
+    expect(selection.deselectedFiles.size).toBe(0);
+  });
+
+  it("config generation after child file selections is compacted to a folder", () => {
+    const tree = sampleTree();
+    const index = buildTreeIndex(tree);
+    let selection = createEmptySelection();
+    selection = toggleFileSelection("src/app.ts", selection, index);
+    selection = toggleFileSelection("src/util.ts", selection, index);
+    selection = toggleFileSelection("src/nested/deep.ts", selection, index);
+    const config = buildConfigPreview({
+      projectRoot: "/repo",
+      outputFile: "/tmp/codebundle-output.md",
+      format: "markdown",
+      selection,
+      exclude: [],
+      maxFileSizeKb: 500,
+      respectGitIgnore: true,
+      followSymlinks: false
+    });
+
+    expect(config.folders).toEqual(["src"]);
+    expect(config.files).toEqual([]);
   });
 });

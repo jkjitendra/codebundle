@@ -169,6 +169,19 @@ export default function App(): JSX.Element {
     }
   }
 
+  function updateProjectFolder(value: string): void {
+    setProjectFolder(value.length > 0 ? value : null);
+    setScanResult(null);
+    setPrepareResult(null);
+    setExportResult(null);
+    setRevealError(null);
+    setCopyStatus(null);
+    setConfigPreview(null);
+    setSelection(clearSelection());
+    setExpandedFolders(new Set());
+    setWarnings([]);
+  }
+
   async function chooseOutputFile(): Promise<void> {
     setError(null);
     try {
@@ -184,6 +197,15 @@ export default function App(): JSX.Element {
     } catch (caughtError) {
       setError(caughtError instanceof Error ? caughtError.message : "Unable to choose an output file.");
     }
+  }
+
+  function updateOutputFile(value: string): void {
+    setOutputFile(value.length > 0 ? value : null);
+    setPrepareResult(null);
+    setExportResult(null);
+    setRevealError(null);
+    setCopyStatus(null);
+    setConfigPreview(null);
   }
 
   async function scanSelectedProject(allowHomeDirectory = false): Promise<void> {
@@ -373,7 +395,7 @@ export default function App(): JSX.Element {
       <header style={styles.header}>
         <div>
           <h1 style={styles.title}>CodeBundle</h1>
-          <p style={styles.tagline}>Bundle project files into one AI-ready export.</p>
+          <p style={styles.tagline}>Bundle project files into one export.</p>
         </div>
         {appInfo ? <div style={styles.version}>v{appInfo.version}</div> : null}
       </header>
@@ -388,6 +410,7 @@ export default function App(): JSX.Element {
           <ProjectPicker
             projectFolder={projectFolder}
             isScanning={isScanning}
+            onProjectFolderChange={updateProjectFolder}
             onChooseProjectFolder={chooseProjectFolder}
             onScanProject={() => void scanSelectedProject()}
           />
@@ -399,6 +422,7 @@ export default function App(): JSX.Element {
             isPreparingExport={isPreparingExport}
             isExporting={isExporting}
             exportStatus={exportStatus}
+            onOutputFileChange={updateOutputFile}
             onChooseOutputFile={chooseOutputFile}
             onPrepareExport={() => void prepareExportConfig()}
             onRunExport={() => void runExport()}

@@ -64,6 +64,7 @@ export interface TreeIndex {
   childrenByPath: Map<string, string[]>;
   ancestorsByPath: Map<string, string[]>;
   descendantFileCountByFolder: Map<string, number>;
+  descendantFilesByFolder: Map<string, string[]>;
   filePaths: string[];
   directoryPaths: string[];
 }
@@ -74,17 +75,18 @@ export function buildTreeIndex(nodes: FileTreeNode[]): TreeIndex {
   const childrenByPath = new Map<string, string[]>();
   const ancestorsByPath = new Map<string, string[]>();
   const descendantFileCountByFolder = new Map<string, number>();
+  const descendantFilesByFolder = new Map<string, string[]>();
   const filePaths: string[] = [];
   const directoryPaths: string[] = [];
 
-  function visit(node: FileTreeNode, parentPath: string | null, ancestors: string[]): number {
+  function visit(node: FileTreeNode, parentPath: string | null, ancestors: string[]): string[] {
     nodeByPath.set(node.path, node);
     parentByPath.set(node.path, parentPath);
     ancestorsByPath.set(node.path, ancestors);
 
     if (node.type === "file") {
       filePaths.push(node.path);
-      return 1;
+      return [node.path];
     }
 
     directoryPaths.push(node.path);
@@ -93,9 +95,10 @@ export function buildTreeIndex(nodes: FileTreeNode[]): TreeIndex {
       node.children.map((child) => child.path)
     );
     const nextAncestors = [...ancestors, node.path];
-    const fileCount = node.children.reduce((total, child) => total + visit(child, node.path, nextAncestors), 0);
-    descendantFileCountByFolder.set(node.path, fileCount);
-    return fileCount;
+    const descendantFiles = node.children.flatMap((child) => visit(child, node.path, nextAncestors));
+    descendantFileCountByFolder.set(node.path, descendantFiles.length);
+    descendantFilesByFolder.set(node.path, descendantFiles);
+    return descendantFiles;
   }
 
   for (const node of nodes) {
@@ -108,6 +111,7 @@ export function buildTreeIndex(nodes: FileTreeNode[]): TreeIndex {
     childrenByPath,
     ancestorsByPath,
     descendantFileCountByFolder,
+    descendantFilesByFolder,
     filePaths,
     directoryPaths
   };

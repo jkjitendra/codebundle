@@ -49,14 +49,19 @@ export function toggleNodeSelection(node: FileTreeNode, selection: SelectionMode
 
 export function toggleFileSelection(path: string, selection: SelectionModel, index: TreeIndex): SelectionModel {
   const next = cloneSelection(selection);
+  const wasSelected = isFileSelected(path, selection, index);
+  const wasSelectedByFolder = isSelectedByFolder(path, selection, index);
+  const wasExplicitlyDeselected = selection.deselectedFiles.has(path) || isDeselectedByFolder(path, selection, index);
   clearPath(next, path);
 
-  if (isFileSelected(path, selection, index)) {
-    if (isSelectedByFolder(path, selection, index)) {
+  if (wasSelected) {
+    if (wasSelectedByFolder) {
       next.deselectedFiles.add(path);
     } else {
       next.selectedFiles.delete(path);
     }
+  } else if (wasSelectedByFolder && wasExplicitlyDeselected) {
+    removeDeselectedAncestors(path, next, index);
   } else if (isDeselectedByFolder(path, selection, index)) {
     removeDeselectedAncestors(path, next, index);
     next.selectedFiles.add(path);
@@ -64,27 +69,27 @@ export function toggleFileSelection(path: string, selection: SelectionModel, ind
     next.selectedFiles.add(path);
   }
 
-  return next;
+  return normalizeSelectionForAncestors(path, next, index);
 }
 
 export function toggleFolderSelection(path: string, selection: SelectionModel, index: TreeIndex): SelectionModel {
   const next = cloneSelection(selection);
   const state = getFolderSelectionState(path, selection, index);
-  clearDescendantOverrides(path, next);
 
   if (state === "checked") {
-    next.selectedFolders.delete(path);
+    clearSelectionUnderFolder(path, next);
     if (isSelectedByAncestorFolder(path, selection, index)) {
       next.deselectedFolders.add(path);
     }
   } else {
+    clearSelectionUnderFolder(path, next);
     next.deselectedFolders.delete(path);
     removeDeselectedAncestors(path, next, index);
     next.selectedFolders.add(path);
   }
 
   removeRedundantSelectedDescendants(path, next);
-  return next;
+  return normalizeSelectionForAncestors(path, next, index);
 }
 
 export function selectPaths(paths: string[], selection: SelectionModel, index: TreeIndex): SelectionModel {
@@ -188,6 +193,36 @@ export function isFileSelected(path: string, selection: SelectionModel, index: T
   return isSelectedByFolder(path, selection, index) && !isDeselectedByFolder(path, selection, index);
 }
 
+export function normalizeSelectionForAncestors(path: string, selection: SelectionModel, index: TreeIndex): SelectionModel {
+  const next = cloneSelection(selection);
+  const candidateFolders = [...(index.ancestorsByPath.get(path) ?? [])];
+  const node = index.nodeByPath.get(path);
+  if (node?.type === "directory") {
+    candidateFolders.push(path);
+  }
+
+  for (const folderPath of candidateFolders.reverse()) {
+    if (isSelectedByAncestorFolder(folderPath, next, index)) {
+      continue;
+    }
+    if (areAllDescendantFilesSelected(folderPath, next, index)) {
+      clearSelectionUnderFolder(folderPath, next);
+      next.selectedFolders.add(folderPath);
+    }
+  }
+
+  return next;
+}
+
+export function areAllDescendantFilesSelected(folderPath: string, selection: SelectionModel, index: TreeIndex): boolean {
+  const descendantFiles = index.descendantFilesByFolder.get(folderPath) ?? [];
+  return descendantFiles.length > 0 && descendantFiles.every((filePath) => isFileSelected(filePath, selection, index));
+}
+
+export function clearSelectionUnderFolder(folderPath: string, selection: SelectionModel): void {
+  clearDescendantOverrides(folderPath, selection);
+}
+
 function getFolderSelectionState(path: string, selection: SelectionModel, index: TreeIndex): SelectionState {
   const node = index.nodeByPath.get(path);
   if (!node || node.type !== "directory") {
@@ -202,7 +237,7 @@ function isFolderFullySelected(path: string, selection: SelectionModel, index: T
     return false;
   }
   if (!selection.selectedFolders.has(path) && !isSelectedByAncestorFolder(path, selection, index)) {
-    return false;
+    return hasAnySelectionInFolder(path, selection, index) && areAllDescendantFilesSelected(path, selection, index);
   }
   return !hasDeselectionInFolder(path, selection);
 }

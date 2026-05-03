@@ -18,6 +18,7 @@ describe("tree utilities", () => {
     expect(index.ancestorsByPath.get("src/nested/deep.ts")).toEqual(["src", "src/nested"]);
     expect(index.descendantFileCountByFolder.get("src")).toBe(2);
     expect(index.descendantFileCountByFolder.get("src/nested")).toBe(1);
+    expect(index.descendantFilesByFolder.get("src")).toEqual(["src/nested/deep.ts", "src/app.ts"]);
     expect(index.filePaths).toEqual(["src/nested/deep.ts", "src/app.ts"]);
     expect(index.directoryPaths).toEqual(["src", "src/nested"]);
   });

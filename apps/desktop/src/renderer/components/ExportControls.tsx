@@ -5,6 +5,7 @@ interface ExportControlsProps {
   isPreparingExport: boolean;
   isExporting: boolean;
   exportStatus: string | null;
+  onOutputFileChange: (value: string) => void;
   onChooseOutputFile: () => void;
   onPrepareExport: () => void;
   onRunExport: () => void;
@@ -18,6 +19,7 @@ export function ExportControls({
   isPreparingExport,
   isExporting,
   exportStatus,
+  onOutputFileChange,
   onChooseOutputFile,
   onPrepareExport,
   onRunExport,
@@ -30,7 +32,13 @@ export function ExportControls({
         <p style={styles.copy}>Choose where the Markdown or text export will be written.</p>
       </div>
       <div style={styles.row}>
-        <div style={styles.pathValue}>{outputFile ?? "No output file selected"}</div>
+        <input
+          type="text"
+          value={outputFile ?? ""}
+          onChange={(event) => onOutputFileChange(event.target.value)}
+          placeholder="Paste an absolute .md or .txt output path"
+          style={styles.pathInput}
+        />
         <button type="button" style={styles.secondaryButton} onClick={onChooseOutputFile}>
           Choose Output
         </button>
@@ -59,7 +67,10 @@ export function ExportControls({
         </button>
       </div>
       {exportStatus ? <p style={styles.status}>{exportStatus}</p> : null}
-      <p style={styles.note}>Run Export invokes the local Python exporter. Prepare Export only writes a debug temp config.</p>
+      <p style={styles.note}>
+        <b>Run Export</b> creates the final Markdown/TXT file.<br />
+        <b>Prepare Export</b> only validates and writes a temporary debug config.
+      </p>
     </section>
   );
 }
@@ -88,10 +99,9 @@ const styles = {
     alignItems: "center",
     gap: 10
   },
-  pathValue: {
-    minHeight: 42,
-    display: "flex",
-    alignItems: "center",
+  pathInput: {
+    height: 42,
+    minWidth: 0,
     overflow: "hidden",
     padding: "0 12px",
     border: "1px solid #d7dce5",
@@ -101,7 +111,8 @@ const styles = {
     fontFamily: "ui-monospace, SFMono-Regular, Menlo, Consolas, monospace",
     fontSize: 12,
     textOverflow: "ellipsis",
-    whiteSpace: "nowrap"
+    whiteSpace: "nowrap",
+    boxSizing: "border-box"
   },
   secondaryButton: {
     height: 42,
