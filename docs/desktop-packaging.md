@@ -183,7 +183,7 @@ Code signing is not part of the current MVP. GitHub Actions currently produces u
 
 The sidecar packaging foundation is in place, but signed production installers are not implemented yet. Cross-platform sidecars require platform-specific builds. Release artifacts, installer outputs, PyInstaller outputs, and sidecar binaries should not be committed.
 
-`npm audit` currently reports Electron, electron-builder build-chain, and Vite/electron-vite advisories whose automated fixes require breaking upgrades. Do not run `npm audit fix --force` blindly. Track those upgrades as targeted release-hardening work before a stable public release.
+Desktop dependency audit is clean after the targeted Electron/electron-builder/electron-vite/Vite upgrade. See `desktop-security-upgrade.md` for package versions, Node requirements, verification commands, and remaining non-security warnings.
 
 ## Target Installed User Experience
 
