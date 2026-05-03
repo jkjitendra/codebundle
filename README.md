@@ -1,6 +1,6 @@
 # CodeBundle
 
-![CodeBundle](resources/branding/horizontal_logo.png)
+![CodeBundle](resources/branding/horizontal_logo2.png)
 
 CodeBundle bundles selected project files into one Markdown or text export for AI review, code sharing, automation, and CI/CD workflows.
 

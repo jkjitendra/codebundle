@@ -1,6 +1,6 @@
 # CodeBundle Desktop
 
-![CodeBundle](../../resources/branding/horizontal_logo.png)
+![CodeBundle](../../resources/branding/horizontal_logo2.png)
 
 Electron desktop app for CodeBundle.
 
