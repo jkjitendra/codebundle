@@ -15,3 +15,8 @@ node_modules/
 out/
 release/
 .vite/
+resources/sidecars/current/*
+!resources/sidecars/current/.gitkeep
+exporter-python/build/
+exporter-python/dist/
+exporter-python/*.spec
