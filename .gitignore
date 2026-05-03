@@ -20,3 +20,4 @@ resources/sidecars/current/*
 exporter-python/build/
 exporter-python/dist/
 exporter-python/*.spec
+.idea

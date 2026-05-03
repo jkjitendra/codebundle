@@ -55,10 +55,7 @@ export async function scanProject(options: ScanProjectOptions): Promise<ScanProj
   return {
     projectRoot,
     nodes: context.nodes,
-    summary,
-    warnings: options.respectGitIgnore
-      ? [".gitignore support is simple and not full Git-compatible matching."]
-      : undefined
+    summary
   };
 }
 

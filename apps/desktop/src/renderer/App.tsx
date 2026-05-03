@@ -2,9 +2,11 @@ import { useEffect, useMemo, useState } from "react";
 import { ExcludeRulesEditor } from "./components/ExcludeRulesEditor";
 import { ExportControls } from "./components/ExportControls";
 import { ExportSummary } from "./components/ExportSummary";
+import { ExportToast } from "./components/ExportToast";
 import { FileTree } from "./components/FileTree";
+import { InlineInfo } from "./components/InlineInfo";
+import { LocalFirstInfo } from "./components/LocalFirstInfo";
 import { ProjectPicker } from "./components/ProjectPicker";
-import { WarningPanel } from "./components/WarningPanel";
 import {
   buildConfigPreview,
   clearSelection,
@@ -26,6 +28,14 @@ import type {
 } from "./lib/types";
 
 const DEFAULT_MAX_FILE_SIZE_KB = 500;
+const TOAST_DISMISS_MS = 9_000;
+
+interface ExportToastState {
+  kind: "success" | "error" | "info";
+  title: string;
+  message?: string;
+  outputFile?: string;
+}
 
 export default function App(): JSX.Element {
   const [projectFolder, setProjectFolder] = useState<string | null>(null);
@@ -51,6 +61,8 @@ export default function App(): JSX.Element {
   const [revealError, setRevealError] = useState<string | null>(null);
   const [copyStatus, setCopyStatus] = useState<string | null>(null);
   const [exportStatus, setExportStatus] = useState<string | null>(null);
+  const [isInfoOpen, setIsInfoOpen] = useState(false);
+  const [toast, setToast] = useState<ExportToastState | null>(null);
   const [preferencesLoaded, setPreferencesLoaded] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [warnings, setWarnings] = useState<string[]>([]);
@@ -149,6 +161,15 @@ export default function App(): JSX.Element {
     });
   }, [preferencesLoaded, projectFolder, outputFile, maxFileSizeKb, respectGitIgnore, followSymlinks, excludeText]);
 
+  useEffect(() => {
+    if (!toast) {
+      return undefined;
+    }
+
+    const timer = window.setTimeout(() => setToast(null), TOAST_DISMISS_MS);
+    return () => window.clearTimeout(timer);
+  }, [toast]);
+
   async function chooseProjectFolder(): Promise<void> {
     setError(null);
     try {
@@ -160,6 +181,7 @@ export default function App(): JSX.Element {
         setExportResult(null);
         setRevealError(null);
         setCopyStatus(null);
+        setToast(null);
         setConfigPreview(null);
         setSelection(clearSelection());
         setExpandedFolders(new Set());
@@ -176,6 +198,7 @@ export default function App(): JSX.Element {
     setExportResult(null);
     setRevealError(null);
     setCopyStatus(null);
+    setToast(null);
     setConfigPreview(null);
     setSelection(clearSelection());
     setExpandedFolders(new Set());
@@ -192,6 +215,7 @@ export default function App(): JSX.Element {
         setExportResult(null);
         setRevealError(null);
         setCopyStatus(null);
+        setToast(null);
         setConfigPreview(null);
       }
     } catch (caughtError) {
@@ -205,6 +229,7 @@ export default function App(): JSX.Element {
     setExportResult(null);
     setRevealError(null);
     setCopyStatus(null);
+    setToast(null);
     setConfigPreview(null);
   }
 
@@ -231,6 +256,7 @@ export default function App(): JSX.Element {
       setExportResult(null);
       setRevealError(null);
       setCopyStatus(null);
+      setToast(null);
       setConfigPreview(null);
       setSelection(clearSelection());
       setExpandedFolders(new Set(result.nodes.filter((node) => node.type === "directory").map((node) => node.path)));
@@ -268,6 +294,7 @@ export default function App(): JSX.Element {
     setExportResult(null);
     setRevealError(null);
     setCopyStatus(null);
+    setToast(null);
     setConfigPreview(null);
     setSelection((current) => toggleNodeSelection(node, current, treeIndex));
   }
@@ -277,6 +304,7 @@ export default function App(): JSX.Element {
     setExportResult(null);
     setRevealError(null);
     setCopyStatus(null);
+    setToast(null);
     setConfigPreview(null);
     setSelection((current) => selectPaths(collectFilePaths(filteredTree), current, treeIndex));
   }
@@ -286,6 +314,7 @@ export default function App(): JSX.Element {
     setExportResult(null);
     setRevealError(null);
     setCopyStatus(null);
+    setToast(null);
     setConfigPreview(null);
     setSelection(clearSelection());
   }
@@ -329,6 +358,7 @@ export default function App(): JSX.Element {
     setExportResult(null);
     setRevealError(null);
     setCopyStatus(null);
+    setToast(null);
     setConfigPreview(nextConfigPreview);
     setIsExporting(true);
     setExportStatus("Preparing config...");
@@ -341,14 +371,33 @@ export default function App(): JSX.Element {
       setExportResult(result);
       setRevealError(null);
       setExportStatus(result.success ? "Export complete." : null);
+      setToast(
+        result.success
+          ? {
+              kind: "success",
+              title: "Export completed",
+              outputFile: result.outputFile
+            }
+          : {
+              kind: result.error.code === "EXPORT_CANCELLED" ? "info" : "error",
+              title: result.error.code === "EXPORT_CANCELLED" ? "Export cancelled" : "Export failed",
+              message: result.error.details ?? result.error.message
+            }
+      );
     } catch (caughtError) {
-      setExportResult({
+      const failureResult: RunExportResult = {
         success: false,
         error: {
           code: "EXPORT_FAILED",
           message: "CodeBundle export failed.",
           details: caughtError instanceof Error ? caughtError.message : "Unknown export error."
         }
+      };
+      setExportResult(failureResult);
+      setToast({
+        kind: "error",
+        title: "Export failed",
+        message: failureResult.error.details ?? failureResult.error.message
       });
       setExportStatus(null);
     } finally {
@@ -360,6 +409,11 @@ export default function App(): JSX.Element {
     setExportStatus("Cancelling export...");
     const result = await window.codeBundle.cancelExport();
     setExportResult(result);
+    setToast({
+      kind: "info",
+      title: "Export cancelled",
+      message: result.success ? undefined : result.error.message
+    });
     setIsExporting(false);
     setExportStatus(null);
   }
@@ -392,15 +446,32 @@ export default function App(): JSX.Element {
 
   return (
     <main style={styles.shell}>
+      {toast ? (
+        <ExportToast
+          kind={toast.kind}
+          title={toast.title}
+          message={toast.message}
+          outputFile={toast.outputFile}
+          onRevealOutput={(path) => void revealOutput(path)}
+          onCopyOutput={(path) => void copyOutputPath(path)}
+          onDismiss={() => setToast(null)}
+        />
+      ) : null}
       <header style={styles.header}>
         <div>
           <h1 style={styles.title}>CodeBundle</h1>
           <p style={styles.tagline}>Bundle project files into one export.</p>
         </div>
-        {appInfo ? <div style={styles.version}>v{appInfo.version}</div> : null}
+        <div style={styles.headerActions}>
+          <LocalFirstInfo
+            defaultExcludes={defaultExcludes}
+            isOpen={isInfoOpen}
+            onToggle={() => setIsInfoOpen((current) => !current)}
+            onClose={() => setIsInfoOpen(false)}
+          />
+          {appInfo ? <div style={styles.version}>v{appInfo.version}</div> : null}
+        </div>
       </header>
-
-      <WarningPanel defaultExcludes={defaultExcludes} />
 
       {warnings.length > 0 ? <div style={styles.warning}>{warnings.join(" ")}</div> : null}
       {error ? <div style={styles.error}>{error}</div> : null}
@@ -441,42 +512,73 @@ export default function App(): JSX.Element {
                   setExportResult(null);
                   setRevealError(null);
                   setCopyStatus(null);
+                  setToast(null);
                   setConfigPreview(null);
                   setMaxFileSizeKb(Number(event.target.value) || DEFAULT_MAX_FILE_SIZE_KB);
                 }}
                 style={styles.numberInput}
               />
             </label>
-            <label style={styles.checkLabel}>
-              <input
-                type="checkbox"
-                checked={respectGitIgnore}
-                onChange={(event) => {
-                  setPrepareResult(null);
-                  setExportResult(null);
-                  setRevealError(null);
-                  setCopyStatus(null);
-                  setConfigPreview(null);
-                  setRespectGitIgnore(event.target.checked);
-                }}
-              />
-              Respect .gitignore
-            </label>
-            <label style={styles.checkLabel}>
-              <input
-                type="checkbox"
-                checked={followSymlinks}
-                onChange={(event) => {
-                  setPrepareResult(null);
-                  setExportResult(null);
-                  setRevealError(null);
-                  setCopyStatus(null);
-                  setConfigPreview(null);
-                  setFollowSymlinks(event.target.checked);
-                }}
-              />
-              Follow symlinks
-            </label>
+            <div style={styles.checkRow}>
+              <label style={styles.checkLabel}>
+                <input
+                  type="checkbox"
+                  checked={respectGitIgnore}
+                  onChange={(event) => {
+                    setPrepareResult(null);
+                    setExportResult(null);
+                    setRevealError(null);
+                    setCopyStatus(null);
+                    setToast(null);
+                    setConfigPreview(null);
+                    setRespectGitIgnore(event.target.checked);
+                  }}
+                />
+                Respect .gitignore
+              </label>
+              <InlineInfo label="Explain Respect .gitignore">
+                <strong style={styles.infoTitle}>Respect .gitignore</strong>
+                <span>
+                  When on, CodeBundle reads the project's root .gitignore and skips matching files/folders during scan
+                  and export.
+                </span>
+                <span>
+                  When off, CodeBundle ignores .gitignore rules and only applies CodeBundle's default/custom exclude
+                  rules.
+                </span>
+                <span>
+                  Note: current .gitignore support is lightweight root .gitignore matching, not full Git-compatible
+                  nested ignore behavior.
+                </span>
+              </InlineInfo>
+            </div>
+            <div style={styles.checkRow}>
+              <label style={styles.checkLabel}>
+                <input
+                  type="checkbox"
+                  checked={followSymlinks}
+                  onChange={(event) => {
+                    setPrepareResult(null);
+                    setExportResult(null);
+                    setRevealError(null);
+                    setCopyStatus(null);
+                    setToast(null);
+                    setConfigPreview(null);
+                    setFollowSymlinks(event.target.checked);
+                  }}
+                />
+                Follow symlinks
+              </label>
+              <InlineInfo label="Explain Follow symlinks">
+                <strong style={styles.infoTitle}>Follow symlinks</strong>
+                <span>When off, CodeBundle skips symbolic links. This avoids accidentally scanning linked files or folders.</span>
+                <span>
+                  When on, CodeBundle follows symbolic links during scan/export. Linked targets are still checked by path
+                  safety rules.
+                </span>
+                <span>Recommended: keep this off unless your project intentionally uses linked folders.</span>
+              </InlineInfo>
+            </div>
           </section>
           <div style={styles.divider} />
           <ExcludeRulesEditor
@@ -486,6 +588,7 @@ export default function App(): JSX.Element {
               setExportResult(null);
               setRevealError(null);
               setCopyStatus(null);
+              setToast(null);
               setConfigPreview(null);
               setExcludeText(value);
             }}
@@ -622,6 +725,11 @@ const styles = {
     fontSize: 12,
     fontWeight: 700
   },
+  headerActions: {
+    display: "flex",
+    alignItems: "center",
+    gap: 10
+  },
   grid: {
     display: "grid",
     gridTemplateColumns: "minmax(360px, 0.74fr) minmax(420px, 1.26fr)",
@@ -681,6 +789,16 @@ const styles = {
     color: "#344054",
     fontSize: 13,
     fontWeight: 650
+  },
+  checkRow: {
+    display: "flex",
+    alignItems: "center",
+    gap: 6
+  },
+  infoTitle: {
+    color: "#3b2e18",
+    fontSize: 12,
+    fontWeight: 800
   },
   filters: {
     display: "grid",

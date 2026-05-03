@@ -57,20 +57,22 @@ export function ExportControls({
             Cancel Export
           </button>
         ) : null}
-        <button
-          type="button"
-          style={canPrepareExport ? styles.prepareButton : styles.disabledButton}
-          disabled={!canPrepareExport || isPreparingExport || isExporting}
-          onClick={onPrepareExport}
-        >
-          {isPreparingExport ? "Preparing..." : "Prepare Export"}
-        </button>
       </div>
       {exportStatus ? <p style={styles.status}>{exportStatus}</p> : null}
-      <p style={styles.note}>
-        <b>Run Export</b> creates the final Markdown/TXT file.<br />
-        <b>Prepare Export</b> only validates and writes a temporary debug config.
-      </p>
+      <details style={styles.advanced}>
+        <summary style={styles.advancedSummary}>Advanced / Debug</summary>
+        <div style={styles.advancedContent}>
+          <button
+            type="button"
+            style={canPrepareExport ? styles.prepareButton : styles.disabledButton}
+            disabled={!canPrepareExport || isPreparingExport || isExporting}
+            onClick={onPrepareExport}
+          >
+            {isPreparingExport ? "Preparing..." : "Prepare Export"}
+          </button>
+          <p style={styles.note}>Prepare Export only validates and writes a temporary debug config.</p>
+        </div>
+      </details>
     </section>
   );
 }
@@ -130,6 +132,22 @@ const styles = {
     justifyContent: "flex-end",
     gap: 8,
     flexWrap: "wrap"
+  },
+  advanced: {
+    display: "grid",
+    gap: 8
+  },
+  advancedSummary: {
+    cursor: "pointer",
+    color: "#25334a",
+    fontSize: 13,
+    fontWeight: 700
+  },
+  advancedContent: {
+    display: "grid",
+    justifyItems: "start",
+    gap: 8,
+    paddingTop: 2
   },
   disabledButton: {
     height: 42,
