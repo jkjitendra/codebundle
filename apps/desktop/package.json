@@ -18,6 +18,7 @@
     "branding:icons": "node ../../scripts/generate-app-icons.mjs",
     "release:check": "npm test && npm run typecheck && npm run package:dir",
     "package:dir": "npm run build && npm run sidecar:verify && electron-builder --dir",
+    "package:ci": "npm run build && npm run sidecar:verify && electron-builder --publish never",
     "package": "npm run build && npm run sidecar:verify && electron-builder"
   },
   "dependencies": {
@@ -36,5 +37,10 @@
     "typescript": "^5.7.2",
     "vite": "^7.3.2",
     "vitest": "^4.1.5"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/jkjitendra/codebundle.git",
+    "directory": "apps/desktop"
   }
 }

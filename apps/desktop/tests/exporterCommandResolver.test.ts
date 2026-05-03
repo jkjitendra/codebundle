@@ -1,4 +1,5 @@
 import { constants } from "node:fs";
+import { delimiter } from "node:path";
 import { describe, expect, it } from "vitest";
 import { mergePythonPath, resolveExporterCommand } from "../src/main/exporterCommandResolver";
 
@@ -91,7 +92,9 @@ describe("exporterCommandResolver", () => {
     if (result.success) {
       expect(result.command.executable).toBe("python3");
       expect(result.command.argsPrefix).toEqual(["-m", "codebundle_exporter"]);
-      expect(result.command.env?.PYTHONPATH).toBe("/repo/exporter-python:/existing");
+      expect(result.command.env?.PYTHONPATH).toBe(
+        ["/repo/exporter-python", "/existing"].join(delimiter)
+      );
       expect(result.command.mode).toBe("dev-python");
     }
   });

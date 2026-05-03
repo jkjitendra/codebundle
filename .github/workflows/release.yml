@@ -82,7 +82,7 @@ jobs:
 
       - name: Package desktop app
         working-directory: apps/desktop
-        run: npm run package
+        run: npm run package:ci
 
       - name: Upload release artifacts
         uses: softprops/action-gh-release@v2
