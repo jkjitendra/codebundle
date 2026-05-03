@@ -58,6 +58,61 @@ export function buildFileTree(nodes: ScanNode[]): FileTreeNode[] {
   return roots;
 }
 
+export interface TreeIndex {
+  nodeByPath: Map<string, FileTreeNode>;
+  parentByPath: Map<string, string | null>;
+  childrenByPath: Map<string, string[]>;
+  ancestorsByPath: Map<string, string[]>;
+  descendantFileCountByFolder: Map<string, number>;
+  filePaths: string[];
+  directoryPaths: string[];
+}
+
+export function buildTreeIndex(nodes: FileTreeNode[]): TreeIndex {
+  const nodeByPath = new Map<string, FileTreeNode>();
+  const parentByPath = new Map<string, string | null>();
+  const childrenByPath = new Map<string, string[]>();
+  const ancestorsByPath = new Map<string, string[]>();
+  const descendantFileCountByFolder = new Map<string, number>();
+  const filePaths: string[] = [];
+  const directoryPaths: string[] = [];
+
+  function visit(node: FileTreeNode, parentPath: string | null, ancestors: string[]): number {
+    nodeByPath.set(node.path, node);
+    parentByPath.set(node.path, parentPath);
+    ancestorsByPath.set(node.path, ancestors);
+
+    if (node.type === "file") {
+      filePaths.push(node.path);
+      return 1;
+    }
+
+    directoryPaths.push(node.path);
+    childrenByPath.set(
+      node.path,
+      node.children.map((child) => child.path)
+    );
+    const nextAncestors = [...ancestors, node.path];
+    const fileCount = node.children.reduce((total, child) => total + visit(child, node.path, nextAncestors), 0);
+    descendantFileCountByFolder.set(node.path, fileCount);
+    return fileCount;
+  }
+
+  for (const node of nodes) {
+    visit(node, null, []);
+  }
+
+  return {
+    nodeByPath,
+    parentByPath,
+    childrenByPath,
+    ancestorsByPath,
+    descendantFileCountByFolder,
+    filePaths,
+    directoryPaths
+  };
+}
+
 export function collectFilePaths(nodes: FileTreeNode[]): string[] {
   const paths: string[] = [];
   walkTree(nodes, (node) => {
@@ -94,7 +149,7 @@ export function filterTree(
     search: string;
     extension: string;
     showSelectedOnly: boolean;
-    selectedFiles: Set<string>;
+    isSelected?: (path: string) => boolean;
   }
 ): FileTreeNode[] {
   const search = options.search.trim().toLowerCase();
@@ -103,7 +158,7 @@ export function filterTree(
     if (node.type === "file") {
       const matchesSearch = !search || node.path.toLowerCase().includes(search);
       const matchesExtension = !options.extension || node.extension === options.extension;
-      const matchesSelected = !options.showSelectedOnly || options.selectedFiles.has(node.path);
+      const matchesSelected = !options.showSelectedOnly || options.isSelected?.(node.path) === true;
       return matchesSearch && matchesExtension && matchesSelected ? node : null;
     }
 

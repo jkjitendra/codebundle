@@ -1,67 +1,144 @@
 import type { CodeBundleConfigPreview, FileTreeNode } from "./types";
-import { collectDirectoryPaths, collectFilePaths, getDescendantFilePaths } from "./treeUtils";
+import type { TreeIndex } from "./treeUtils";
 
 export type SelectionState = "checked" | "unchecked" | "indeterminate";
 
-export function getNodeSelectionState(node: FileTreeNode, selectedFiles: Set<string>): SelectionState {
-  if (node.type === "file") {
-    return selectedFiles.has(node.path) ? "checked" : "unchecked";
-  }
-
-  const descendantFiles = getDescendantFilePaths(node);
-  if (descendantFiles.length === 0) {
-    return "unchecked";
-  }
-
-  const selectedCount = descendantFiles.filter((path) => selectedFiles.has(path)).length;
-  if (selectedCount === 0) {
-    return "unchecked";
-  }
-  if (selectedCount === descendantFiles.length) {
-    return "checked";
-  }
-  return "indeterminate";
+export interface SelectionModel {
+  selectedFiles: Set<string>;
+  selectedFolders: Set<string>;
+  deselectedFiles: Set<string>;
+  deselectedFolders: Set<string>;
 }
 
-export function toggleNodeSelection(node: FileTreeNode, selectedFiles: Set<string>): Set<string> {
-  const next = new Set(selectedFiles);
-  const paths = getDescendantFilePaths(node);
-  const shouldSelect = paths.some((path) => !next.has(path));
+export function createEmptySelection(): SelectionModel {
+  return {
+    selectedFiles: new Set(),
+    selectedFolders: new Set(),
+    deselectedFiles: new Set(),
+    deselectedFolders: new Set()
+  };
+}
 
-  for (const path of paths) {
-    if (shouldSelect) {
-      next.add(path);
+export function getNodeSelectionState(node: FileTreeNode, selection: SelectionModel, index: TreeIndex): SelectionState {
+  if (node.type === "file") {
+    return isFileSelected(node.path, selection, index) ? "checked" : "unchecked";
+  }
+
+  const totalFiles = index.descendantFileCountByFolder.get(node.path) ?? 0;
+  if (totalFiles === 0) {
+    return "unchecked";
+  }
+
+  if (isFolderFullySelected(node.path, selection, index)) {
+    return "checked";
+  }
+
+  if (hasAnySelectionInFolder(node.path, selection, index)) {
+    return "indeterminate";
+  }
+
+  return "unchecked";
+}
+
+export function toggleNodeSelection(node: FileTreeNode, selection: SelectionModel, index: TreeIndex): SelectionModel {
+  if (node.type === "file") {
+    return toggleFileSelection(node.path, selection, index);
+  }
+  return toggleFolderSelection(node.path, selection, index);
+}
+
+export function toggleFileSelection(path: string, selection: SelectionModel, index: TreeIndex): SelectionModel {
+  const next = cloneSelection(selection);
+  clearPath(next, path);
+
+  if (isFileSelected(path, selection, index)) {
+    if (isSelectedByFolder(path, selection, index)) {
+      next.deselectedFiles.add(path);
     } else {
-      next.delete(path);
+      next.selectedFiles.delete(path);
+    }
+  } else if (isDeselectedByFolder(path, selection, index)) {
+    removeDeselectedAncestors(path, next, index);
+    next.selectedFiles.add(path);
+  } else {
+    next.selectedFiles.add(path);
+  }
+
+  return next;
+}
+
+export function toggleFolderSelection(path: string, selection: SelectionModel, index: TreeIndex): SelectionModel {
+  const next = cloneSelection(selection);
+  const state = getFolderSelectionState(path, selection, index);
+  clearDescendantOverrides(path, next);
+
+  if (state === "checked") {
+    next.selectedFolders.delete(path);
+    if (isSelectedByAncestorFolder(path, selection, index)) {
+      next.deselectedFolders.add(path);
+    }
+  } else {
+    next.deselectedFolders.delete(path);
+    removeDeselectedAncestors(path, next, index);
+    next.selectedFolders.add(path);
+  }
+
+  removeRedundantSelectedDescendants(path, next);
+  return next;
+}
+
+export function selectPaths(paths: string[], selection: SelectionModel, index: TreeIndex): SelectionModel {
+  let next = selection;
+  for (const path of paths) {
+    const node = index.nodeByPath.get(path);
+    if (!node) {
+      continue;
+    }
+    if (node.type === "file" && !isFileSelected(path, next, index)) {
+      next = toggleFileSelection(path, next, index);
+    } else if (node.type === "directory" && getFolderSelectionState(path, next, index) !== "checked") {
+      next = toggleFolderSelection(path, next, index);
+    }
+  }
+  return next;
+}
+
+export function clearSelection(): SelectionModel {
+  return createEmptySelection();
+}
+
+export function getSelectionSummary(selection: SelectionModel, index: TreeIndex) {
+  let estimatedExportFileCount = 0;
+
+  for (const folderPath of selection.selectedFolders) {
+    if (hasSelectedFolderAncestor(folderPath, selection, index)) {
+      continue;
+    }
+    estimatedExportFileCount += index.descendantFileCountByFolder.get(folderPath) ?? 0;
+  }
+
+  for (const filePath of selection.selectedFiles) {
+    if (!isSelectedByFolder(filePath, selection, index)) {
+      estimatedExportFileCount += 1;
     }
   }
 
-  return next;
-}
-
-export function selectFiles(paths: string[], selectedFiles: Set<string>): Set<string> {
-  const next = new Set(selectedFiles);
-  for (const path of paths) {
-    next.add(path);
+  for (const filePath of selection.deselectedFiles) {
+    if (isSelectedByFolder(filePath, selection, index)) {
+      estimatedExportFileCount -= 1;
+    }
   }
-  return next;
-}
 
-export function clearSelection(): Set<string> {
-  return new Set<string>();
-}
-
-export function getSelectionSummary(nodes: FileTreeNode[], selectedFiles: Set<string>) {
-  const allFiles = collectFilePaths(nodes);
-  const selectedFolders = collectDirectoryPaths(nodes).filter((folderPath) => {
-    const folderFiles = allFiles.filter((filePath) => filePath.startsWith(`${folderPath}/`));
-    return folderFiles.length > 0 && folderFiles.every((filePath) => selectedFiles.has(filePath));
-  });
+  for (const folderPath of selection.deselectedFolders) {
+    if (isSelectedByAncestorFolder(folderPath, selection, index)) {
+      estimatedExportFileCount -= index.descendantFileCountByFolder.get(folderPath) ?? 0;
+    }
+  }
 
   return {
-    selectedFilesCount: selectedFiles.size,
-    selectedFoldersCount: selectedFolders.length,
-    estimatedExportFileCount: selectedFiles.size
+    selectedFilesCount: selection.selectedFiles.size,
+    selectedFoldersCount: selection.selectedFolders.size,
+    estimatedExportFileCount: Math.max(0, estimatedExportFileCount)
   };
 }
 
@@ -69,32 +146,20 @@ export function buildConfigPreview(options: {
   projectRoot: string;
   outputFile: string;
   format: "markdown" | "text";
-  tree: FileTreeNode[];
-  selectedFiles: Set<string>;
+  selection: SelectionModel;
   exclude: string[];
   maxFileSizeKb: number;
   respectGitIgnore: boolean;
   followSymlinks: boolean;
 }): CodeBundleConfigPreview {
-  const allFiles = collectFilePaths(options.tree);
-  const allDirectories = collectDirectoryPaths(options.tree).sort(
-    (left, right) => left.split("/").length - right.split("/").length || left.localeCompare(right)
-  );
-  const folders: string[] = [];
-
-  for (const folderPath of allDirectories) {
-    if (folders.some((parentPath) => folderPath.startsWith(`${parentPath}/`))) {
-      continue;
-    }
-    const folderFiles = allFiles.filter((filePath) => filePath.startsWith(`${folderPath}/`));
-    if (folderFiles.length > 0 && folderFiles.every((filePath) => options.selectedFiles.has(filePath))) {
-      folders.push(folderPath);
-    }
-  }
-
-  const files = [...options.selectedFiles]
-    .filter((filePath) => !folders.some((folderPath) => filePath.startsWith(`${folderPath}/`)))
+  const folders = compactSelectedFolders(options.selection).sort((left, right) => left.localeCompare(right));
+  const files = [...options.selection.selectedFiles]
+    .filter((filePath) => !folders.some((folderPath) => isDescendantPath(filePath, folderPath)))
     .sort((left, right) => left.localeCompare(right));
+  const excludeOverrides = [
+    ...[...options.selection.deselectedFiles].sort((left, right) => left.localeCompare(right)),
+    ...[...options.selection.deselectedFolders].sort((left, right) => left.localeCompare(right)).map((path) => `${path}/**`)
+  ];
 
   return {
     version: 1,
@@ -105,10 +170,156 @@ export function buildConfigPreview(options: {
     files,
     folders,
     include: [],
-    exclude: options.exclude,
+    exclude: [...new Set([...options.exclude, ...excludeOverrides])],
     maxFileSizeKb: options.maxFileSizeKb,
     skipBinaryFiles: true,
     respectGitIgnore: options.respectGitIgnore,
     followSymlinks: options.followSymlinks
   };
+}
+
+export function isFileSelected(path: string, selection: SelectionModel, index: TreeIndex): boolean {
+  if (selection.deselectedFiles.has(path)) {
+    return false;
+  }
+  if (selection.selectedFiles.has(path)) {
+    return true;
+  }
+  return isSelectedByFolder(path, selection, index) && !isDeselectedByFolder(path, selection, index);
+}
+
+function getFolderSelectionState(path: string, selection: SelectionModel, index: TreeIndex): SelectionState {
+  const node = index.nodeByPath.get(path);
+  if (!node || node.type !== "directory") {
+    return "unchecked";
+  }
+  return getNodeSelectionState(node, selection, index);
+}
+
+function isFolderFullySelected(path: string, selection: SelectionModel, index: TreeIndex): boolean {
+  const totalFiles = index.descendantFileCountByFolder.get(path) ?? 0;
+  if (totalFiles === 0) {
+    return false;
+  }
+  if (!selection.selectedFolders.has(path) && !isSelectedByAncestorFolder(path, selection, index)) {
+    return false;
+  }
+  return !hasDeselectionInFolder(path, selection);
+}
+
+function hasAnySelectionInFolder(path: string, selection: SelectionModel, index: TreeIndex): boolean {
+  if (selection.selectedFolders.has(path) || isSelectedByAncestorFolder(path, selection, index)) {
+    return !selection.deselectedFolders.has(path);
+  }
+
+  for (const folderPath of selection.selectedFolders) {
+    if (isDescendantPath(folderPath, path)) {
+      return true;
+    }
+  }
+  for (const filePath of selection.selectedFiles) {
+    if (isDescendantPath(filePath, path)) {
+      return true;
+    }
+  }
+  return false;
+}
+
+function isSelectedByFolder(path: string, selection: SelectionModel, index: TreeIndex): boolean {
+  return getSelectionAncestors(path, index).some((ancestor) => selection.selectedFolders.has(ancestor));
+}
+
+function isSelectedByAncestorFolder(path: string, selection: SelectionModel, index: TreeIndex): boolean {
+  return getSelectionAncestors(path, index).slice(0, -1).some((ancestor) => selection.selectedFolders.has(ancestor));
+}
+
+function hasSelectedFolderAncestor(path: string, selection: SelectionModel, index: TreeIndex): boolean {
+  return isSelectedByAncestorFolder(path, selection, index);
+}
+
+function isDeselectedByFolder(path: string, selection: SelectionModel, index: TreeIndex): boolean {
+  return getSelectionAncestors(path, index).some((ancestor) => selection.deselectedFolders.has(ancestor));
+}
+
+function hasDeselectionInFolder(path: string, selection: SelectionModel): boolean {
+  for (const filePath of selection.deselectedFiles) {
+    if (isDescendantPath(filePath, path)) {
+      return true;
+    }
+  }
+  for (const folderPath of selection.deselectedFolders) {
+    if (folderPath === path || isDescendantPath(folderPath, path)) {
+      return true;
+    }
+  }
+  return false;
+}
+
+function compactSelectedFolders(selection: SelectionModel): string[] {
+  const sorted = [...selection.selectedFolders].sort(
+    (left, right) => left.split("/").length - right.split("/").length || left.localeCompare(right)
+  );
+  const folders: string[] = [];
+
+  for (const folderPath of sorted) {
+    if (!folders.some((parentPath) => isDescendantPath(folderPath, parentPath))) {
+      folders.push(folderPath);
+    }
+  }
+
+  return folders;
+}
+
+function getSelectionAncestors(path: string, index: TreeIndex): string[] {
+  const ancestors = index.ancestorsByPath.get(path) ?? [];
+  return [...ancestors, path];
+}
+
+function clearPath(selection: SelectionModel, path: string): void {
+  selection.selectedFiles.delete(path);
+  selection.selectedFolders.delete(path);
+  selection.deselectedFiles.delete(path);
+  selection.deselectedFolders.delete(path);
+}
+
+function clearDescendantOverrides(path: string, selection: SelectionModel): void {
+  for (const set of [selection.selectedFiles, selection.selectedFolders, selection.deselectedFiles, selection.deselectedFolders]) {
+    for (const candidate of [...set]) {
+      if (candidate === path || isDescendantPath(candidate, path)) {
+        set.delete(candidate);
+      }
+    }
+  }
+}
+
+function removeRedundantSelectedDescendants(path: string, selection: SelectionModel): void {
+  for (const folderPath of [...selection.selectedFolders]) {
+    if (folderPath !== path && isDescendantPath(folderPath, path)) {
+      selection.selectedFolders.delete(folderPath);
+    }
+  }
+  for (const filePath of [...selection.selectedFiles]) {
+    if (isDescendantPath(filePath, path)) {
+      selection.selectedFiles.delete(filePath);
+    }
+  }
+}
+
+function removeDeselectedAncestors(path: string, selection: SelectionModel, index: TreeIndex): void {
+  for (const ancestor of index.ancestorsByPath.get(path) ?? []) {
+    selection.deselectedFolders.delete(ancestor);
+  }
+}
+
+function cloneSelection(selection: SelectionModel): SelectionModel {
+  return {
+    selectedFiles: new Set(selection.selectedFiles),
+    selectedFolders: new Set(selection.selectedFolders),
+    deselectedFiles: new Set(selection.deselectedFiles),
+    deselectedFolders: new Set(selection.deselectedFolders)
+  };
+}
+
+function isDescendantPath(path: string, parentPath: string): boolean {
+  return path.startsWith(`${parentPath}/`);
 }

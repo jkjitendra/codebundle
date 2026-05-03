@@ -5,10 +5,19 @@ import { ExportSummary } from "./components/ExportSummary";
 import { FileTree } from "./components/FileTree";
 import { ProjectPicker } from "./components/ProjectPicker";
 import { WarningPanel } from "./components/WarningPanel";
-import { buildConfigPreview, clearSelection, getSelectionSummary, selectFiles, toggleNodeSelection } from "./lib/selection";
-import { buildFileTree, collectDirectoryPaths, collectExtensions, collectFilePaths, filterTree } from "./lib/treeUtils";
+import {
+  buildConfigPreview,
+  clearSelection,
+  createEmptySelection,
+  getSelectionSummary,
+  isFileSelected,
+  selectPaths,
+  toggleNodeSelection
+} from "./lib/selection";
+import { buildFileTree, buildTreeIndex, collectDirectoryPaths, collectExtensions, collectFilePaths, filterTree } from "./lib/treeUtils";
 import type {
   AppInfo,
+  CodeBundleConfigPreview,
   CodeBundlePreferences,
   FileTreeNode,
   PrepareExportConfigResult,
@@ -25,7 +34,7 @@ export default function App(): JSX.Element {
   const [excludeText, setExcludeText] = useState("");
   const [appInfo, setAppInfo] = useState<AppInfo | null>(null);
   const [scanResult, setScanResult] = useState<ScanProjectResult | null>(null);
-  const [selectedFiles, setSelectedFiles] = useState<Set<string>>(() => new Set());
+  const [selection, setSelection] = useState(() => createEmptySelection());
   const [expandedFolders, setExpandedFolders] = useState<Set<string>>(() => new Set());
   const [search, setSearch] = useState("");
   const [extensionFilter, setExtensionFilter] = useState("");
@@ -36,6 +45,7 @@ export default function App(): JSX.Element {
   const [isScanning, setIsScanning] = useState(false);
   const [isPreparingExport, setIsPreparingExport] = useState(false);
   const [isExporting, setIsExporting] = useState(false);
+  const [configPreview, setConfigPreview] = useState<CodeBundleConfigPreview | null>(null);
   const [prepareResult, setPrepareResult] = useState<PrepareExportConfigResult | null>(null);
   const [exportResult, setExportResult] = useState<RunExportResult | null>(null);
   const [revealError, setRevealError] = useState<string | null>(null);
@@ -46,15 +56,16 @@ export default function App(): JSX.Element {
   const [warnings, setWarnings] = useState<string[]>([]);
 
   const tree = useMemo(() => buildFileTree(scanResult?.nodes ?? []), [scanResult]);
+  const treeIndex = useMemo(() => buildTreeIndex(tree), [tree]);
   const filteredTree = useMemo(
     () =>
       filterTree(tree, {
         search,
         extension: extensionFilter,
         showSelectedOnly,
-        selectedFiles
+        isSelected: (path) => isFileSelected(path, selection, treeIndex)
       }),
-    [tree, search, extensionFilter, showSelectedOnly, selectedFiles]
+    [tree, treeIndex, search, extensionFilter, showSelectedOnly, selection]
   );
   const extensions = useMemo(() => collectExtensions(tree), [tree]);
   const excludePatterns = useMemo(() => parseExcludePatterns(excludeText), [excludeText]);
@@ -62,9 +73,15 @@ export default function App(): JSX.Element {
     () => [...new Set([...defaultExcludes, ...excludePatterns])],
     [defaultExcludes, excludePatterns]
   );
-  const selectionSummary = useMemo(() => getSelectionSummary(tree, selectedFiles), [tree, selectedFiles]);
+  const selectionSummary = useMemo(() => getSelectionSummary(selection, treeIndex), [selection, treeIndex]);
   const outputFormat = outputFile?.toLowerCase().endsWith(".txt") ? "text" : "markdown";
-  const configPreview = useMemo(() => {
+  const canPrepareExport =
+    Boolean(projectFolder && outputFile && scanResult && selectionSummary.estimatedExportFileCount > 0) &&
+    !isPreparingExport &&
+    !isExporting;
+  const canRunExport = canPrepareExport;
+
+  function createConfigPreview(): CodeBundleConfigPreview | null {
     if (!projectFolder || !outputFile || !scanResult) {
       return null;
     }
@@ -72,30 +89,13 @@ export default function App(): JSX.Element {
       projectRoot: projectFolder,
       outputFile,
       format: outputFormat,
-      tree,
-      selectedFiles,
+      selection,
       exclude: configExcludePatterns,
       maxFileSizeKb,
       respectGitIgnore,
       followSymlinks
     });
-  }, [
-    projectFolder,
-    outputFile,
-    scanResult,
-    outputFormat,
-    tree,
-    selectedFiles,
-    configExcludePatterns,
-    maxFileSizeKb,
-    respectGitIgnore,
-    followSymlinks
-  ]);
-  const canPrepareExport =
-    Boolean(configPreview && (configPreview.mode === "all" || configPreview.include.length > 0 || configPreview.files.length + configPreview.folders.length > 0)) &&
-    !isPreparingExport &&
-    !isExporting;
-  const canRunExport = canPrepareExport;
+  }
 
   useEffect(() => {
     let isMounted = true;
@@ -160,7 +160,8 @@ export default function App(): JSX.Element {
         setExportResult(null);
         setRevealError(null);
         setCopyStatus(null);
-        setSelectedFiles(clearSelection());
+        setConfigPreview(null);
+        setSelection(clearSelection());
         setExpandedFolders(new Set());
       }
     } catch (caughtError) {
@@ -178,6 +179,7 @@ export default function App(): JSX.Element {
         setExportResult(null);
         setRevealError(null);
         setCopyStatus(null);
+        setConfigPreview(null);
       }
     } catch (caughtError) {
       setError(caughtError instanceof Error ? caughtError.message : "Unable to choose an output file.");
@@ -207,7 +209,8 @@ export default function App(): JSX.Element {
       setExportResult(null);
       setRevealError(null);
       setCopyStatus(null);
-      setSelectedFiles(clearSelection());
+      setConfigPreview(null);
+      setSelection(clearSelection());
       setExpandedFolders(new Set(result.nodes.filter((node) => node.type === "directory").map((node) => node.path)));
       setWarnings(result.warnings ?? []);
     } catch (caughtError) {
@@ -243,7 +246,8 @@ export default function App(): JSX.Element {
     setExportResult(null);
     setRevealError(null);
     setCopyStatus(null);
-    setSelectedFiles((current) => toggleNodeSelection(node, current));
+    setConfigPreview(null);
+    setSelection((current) => toggleNodeSelection(node, current, treeIndex));
   }
 
   function selectVisibleFiles(): void {
@@ -251,7 +255,8 @@ export default function App(): JSX.Element {
     setExportResult(null);
     setRevealError(null);
     setCopyStatus(null);
-    setSelectedFiles((current) => selectFiles(collectFilePaths(filteredTree), current));
+    setConfigPreview(null);
+    setSelection((current) => selectPaths(collectFilePaths(filteredTree), current, treeIndex));
   }
 
   function deselectAll(): void {
@@ -259,20 +264,23 @@ export default function App(): JSX.Element {
     setExportResult(null);
     setRevealError(null);
     setCopyStatus(null);
-    setSelectedFiles(clearSelection());
+    setConfigPreview(null);
+    setSelection(clearSelection());
   }
 
   async function prepareExportConfig(): Promise<void> {
-    if (!configPreview || !canPrepareExport) {
+    const nextConfigPreview = createConfigPreview();
+    if (!nextConfigPreview || !canPrepareExport) {
       return;
     }
 
     setError(null);
     setPrepareResult(null);
+    setConfigPreview(nextConfigPreview);
     setIsPreparingExport(true);
 
     try {
-      const result = await window.codeBundle.prepareExportConfig(configPreview);
+      const result = await window.codeBundle.prepareExportConfig(nextConfigPreview);
       setPrepareResult(result);
     } catch (caughtError) {
       setPrepareResult({
@@ -289,7 +297,8 @@ export default function App(): JSX.Element {
   }
 
   async function runExport(): Promise<void> {
-    if (!configPreview || !canRunExport) {
+    const nextConfigPreview = createConfigPreview();
+    if (!nextConfigPreview || !canRunExport) {
       return;
     }
 
@@ -298,6 +307,7 @@ export default function App(): JSX.Element {
     setExportResult(null);
     setRevealError(null);
     setCopyStatus(null);
+    setConfigPreview(nextConfigPreview);
     setIsExporting(true);
     setExportStatus("Preparing config...");
 
@@ -305,7 +315,7 @@ export default function App(): JSX.Element {
       setExportStatus("Resolving Python...");
       await new Promise((resolve) => window.setTimeout(resolve, 0));
       setExportStatus("Running exporter...");
-      const result = await window.codeBundle.runExport(configPreview);
+      const result = await window.codeBundle.runExport(nextConfigPreview);
       setExportResult(result);
       setRevealError(null);
       setExportStatus(result.success ? "Export complete." : null);
@@ -407,6 +417,7 @@ export default function App(): JSX.Element {
                   setExportResult(null);
                   setRevealError(null);
                   setCopyStatus(null);
+                  setConfigPreview(null);
                   setMaxFileSizeKb(Number(event.target.value) || DEFAULT_MAX_FILE_SIZE_KB);
                 }}
                 style={styles.numberInput}
@@ -421,6 +432,7 @@ export default function App(): JSX.Element {
                   setExportResult(null);
                   setRevealError(null);
                   setCopyStatus(null);
+                  setConfigPreview(null);
                   setRespectGitIgnore(event.target.checked);
                 }}
               />
@@ -435,6 +447,7 @@ export default function App(): JSX.Element {
                   setExportResult(null);
                   setRevealError(null);
                   setCopyStatus(null);
+                  setConfigPreview(null);
                   setFollowSymlinks(event.target.checked);
                 }}
               />
@@ -449,6 +462,7 @@ export default function App(): JSX.Element {
               setExportResult(null);
               setRevealError(null);
               setCopyStatus(null);
+              setConfigPreview(null);
               setExcludeText(value);
             }}
           />
@@ -518,7 +532,8 @@ export default function App(): JSX.Element {
           {scanResult ? (
             <FileTree
               nodes={filteredTree}
-              selectedFiles={selectedFiles}
+              treeIndex={treeIndex}
+              selection={selection}
               expandedFolders={expandedFolders}
               onToggleExpanded={toggleExpanded}
               onToggleSelection={toggleSelection}
