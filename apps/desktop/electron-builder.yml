@@ -1,7 +1,8 @@
-appId: com.codebundle.app
+appId: in.jkjitendra.codebundle
 productName: CodeBundle
 directories:
   output: release
+artifactName: ${productName}-${version}-${arch}.${ext}
 files:
   - out/**
   - package.json
@@ -11,11 +12,22 @@ extraResources:
     filter:
       - codebundle-exporter*
 mac:
+  icon: build/icon.icns
   target:
-    - dir
+    - dmg
+    - zip
 win:
+  icon: build/icon.ico
   target:
-    - dir
+    - nsis
+    - portable
+nsis:
+  artifactName: ${productName}-${version}-Windows-${arch}-Setup.${ext}
+portable:
+  artifactName: ${productName}-${version}-Windows-${arch}-Portable.${ext}
 linux:
+  icon: build/icons
   target:
-    - dir
+    - AppImage
+    - deb
+    - tar.gz

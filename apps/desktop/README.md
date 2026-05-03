@@ -1,5 +1,7 @@
 # CodeBundle Desktop
 
+![CodeBundle](../../resources/branding/horizontal_logo.png)
+
 Electron desktop app for CodeBundle.
 
 The app scans local project metadata in the Electron main process, lets users select files/folders in React, and runs the local Python CLI exporter through a validated JSON config. It does not upload files.
@@ -74,6 +76,30 @@ npm run package:dir
 
 The package scripts do not silently build the sidecar. They verify that the sidecar exists before running electron-builder, so packaging fails clearly if `resources/sidecars/current/codebundle-exporter*` is missing.
 
+Generate app icons after branding source changes:
+
+```bash
+npm run branding:icons
+```
+
+Create release packages for the current OS:
+
+```bash
+npm run package
+```
+
+Configured package targets:
+
+- macOS: `.dmg`, `.zip`
+- Windows: NSIS `.exe`, portable `.exe`
+- Linux: `.AppImage`, `.deb`, `.tar.gz`
+
+The latest public release is:
+
+```text
+https://github.com/jkjitendra/codebundle/releases/latest
+```
+
 ## App Workflow
 
 1. Choose a project folder.
@@ -98,7 +124,7 @@ The app persists recent project/output paths and basic preferences under Electro
 
 ## Python Requirement
 
-The current MVP requires Python 3.10+ on the user's machine.
+Development mode requires Python 3.10+ on the developer's machine. Public packaged builds use the bundled sidecar and should not require users to install Python, Node.js, npm, Python packages, or project dependencies.
 
 Resolution order:
 
@@ -110,7 +136,8 @@ Development uses `PYTHONPATH` to make `../../exporter-python` importable.
 
 ## Known Limitations
 
-- Signing, notarization, and installer release flow are not implemented.
+- Signing and notarization are not implemented; CI artifacts are unsigned beta builds.
+- `npm audit` reports Electron, electron-builder build-chain, and Vite/electron-vite advisories that require targeted breaking upgrades before a stable public release.
 - Sidecars must be built on the target OS or in platform-specific CI runners.
 - `.gitignore` support is simple and not full Git-compatible matching.
 - Export progress is coarse, not streamed from Python.
@@ -128,7 +155,7 @@ export CODEBUNDLE_PYTHON_PATH=/path/to/python3
 
 ### Exporter Module Not Found
 
-Run the desktop app from the repository development setup. Packaged exporter sidecar support is not implemented yet.
+Run the desktop app from the repository development setup. Packaged builds use `process.resourcesPath/sidecars/codebundle-exporter*`.
 
 ### Output File Is Empty Or Missing
 

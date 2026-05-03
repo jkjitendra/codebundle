@@ -1,5 +1,7 @@
 # CodeBundle
 
+![CodeBundle](resources/branding/horizontal_logo.png)
+
 CodeBundle bundles selected project files into one Markdown or text export for AI review, code sharing, automation, and CI/CD workflows.
 
 It has two local execution paths:
@@ -9,7 +11,13 @@ It has two local execution paths:
 
 CodeBundle is local-first. It does not upload files, does not call cloud services, and does not store secrets. The desktop app calls the Python CLI on the same machine.
 
-Status: MVP development build with packaging foundation. Development mode requires Node/npm, Python 3.10+, and access to `exporter-python`. The packaged app target includes the Electron runtime and a bundled exporter sidecar so installed users do not manually install Python, Node, npm, or project dependencies.
+Status: MVP development build with release packaging foundation. Development mode requires Node/npm, Python 3.10+, and access to `exporter-python`. Public desktop builds include the Electron runtime and a bundled exporter sidecar so installed users do not manually install Python, Node, npm, Python packages, or project dependencies.
+
+Latest public release:
+
+```text
+https://github.com/jkjitendra/codebundle/releases/latest
+```
 
 ## Quick Start
 
@@ -58,6 +66,8 @@ stdout contains exactly one JSON object so scripts and the desktop app can parse
 - [Python Exporter Guide](exporter-python/README.md)
 - [Security Notes](docs/security.md)
 - [Desktop Packaging Notes](docs/desktop-packaging.md)
+- [Release Checklist](docs/release-checklist.md)
+- [Website And Netlify Integration](docs/website-netlify-integration.md)
 - [Python Automation Guide](docs/python-automation.md)
 
 ## Project Structure
@@ -100,14 +110,35 @@ Desktop:
 
 ```bash
 cd apps/desktop
+npm ci
 npm test
 npm run typecheck
 npm run build
 ```
 
+Release packaging preflight:
+
+```bash
+cd apps/desktop
+npm run sidecar:build
+npm run sidecar:verify
+npm run package:dir
+```
+
+Create a public release by pushing a `v*` tag, for example:
+
+```bash
+git tag v0.1.0
+git push origin v0.1.0
+```
+
+GitHub Actions builds macOS, Windows, and Linux artifacts, builds the platform Python sidecar on each runner, and attaches installers/packages to the GitHub Release.
+
 ## Current MVP Limitations
 
 - Production signing, notarization, and installer release flow are not implemented yet.
+- Current CI artifacts are unsigned beta builds.
+- `npm audit` reports Electron, electron-builder build-chain, and Vite/electron-vite advisories that require targeted breaking upgrades before a stable public release.
 - Sidecars must be built per target OS before packaging.
 - Development mode still needs Python 3.10+ and Node/npm.
 - `.gitignore` support is simple root `.gitignore` pattern support, not full Git-compatible matching.
@@ -126,7 +157,7 @@ export CODEBUNDLE_PYTHON_PATH=/path/to/python3
 
 ### Exporter Module Not Found
 
-Run the desktop app from the repository development setup. Packaged exporter sidecar support is not implemented yet.
+Run the desktop app from the repository development setup. Public packaged builds use the bundled sidecar under app resources and do not use local Python.
 
 ### Output File Is Empty Or Missing
 

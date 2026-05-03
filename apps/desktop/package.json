@@ -3,6 +3,7 @@
   "version": "0.1.0",
   "private": true,
   "description": "Local-first desktop app for building CodeBundle exports.",
+  "author": "jkjitendra",
   "main": "out/main/index.js",
   "type": "module",
   "scripts": {
@@ -14,6 +15,8 @@
     "sidecar:build": "node ../../scripts/run-python-script.mjs ../../scripts/build-python-sidecar.py",
     "sidecar:clean": "node ../../scripts/run-python-script.mjs ../../scripts/build-python-sidecar.py --clean",
     "sidecar:verify": "node ../../scripts/run-python-script.mjs ../../scripts/verify-python-sidecar.py",
+    "branding:icons": "node ../../scripts/generate-app-icons.mjs",
+    "release:check": "npm test && npm run typecheck && npm run package:dir",
     "package:dir": "npm run build && npm run sidecar:verify && electron-builder --dir",
     "package": "npm run build && npm run sidecar:verify && electron-builder"
   },

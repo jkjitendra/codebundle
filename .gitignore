@@ -6,6 +6,8 @@ venv/
 *.egg-info/
 build/
 dist/
+!apps/desktop/build/
+!apps/desktop/build/**
 codebundle-output.md
 codebundle-output.txt
 *.codebundle.tmp.json
