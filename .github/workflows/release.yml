@@ -31,7 +31,7 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: lts/*
+          node-version-file: .nvmrc
           cache: npm
           cache-dependency-path: apps/desktop/package-lock.json
 
@@ -40,6 +40,19 @@ jobs:
         with:
           python-version: "3.12"
           cache: pip
+
+      - name: Pin Python executable for sidecar scripts
+        shell: bash
+        run: |
+          python - <<'PY'
+          import os
+          import sys
+
+          with open(os.environ["GITHUB_ENV"], "a", encoding="utf-8") as env_file:
+              env_file.write(f"CODEBUNDLE_PYTHON_PATH={sys.executable}\n")
+
+          print(f"Using Python for CodeBundle sidecar scripts: {sys.executable}")
+          PY
 
       - name: Install Linux package dependencies
         if: runner.os == 'Linux'
@@ -82,11 +95,33 @@ jobs:
 
       - name: Package desktop app
         working-directory: apps/desktop
-        run: npm run package:ci
+        shell: bash
+        run: |
+          for attempt in 1 2 3; do
+            echo "Packaging attempt ${attempt}/3"
+            if npm run package:ci; then
+              exit 0
+            fi
+
+            echo "Packaging attempt ${attempt} failed."
+
+            if [ "$attempt" -lt 3 ]; then
+              echo "Clearing Electron cache and retrying..."
+              rm -rf "$HOME/.cache/electron" || true
+              rm -rf "$HOME/Library/Caches/electron" || true
+              if [ -n "${LOCALAPPDATA:-}" ]; then
+                rm -rf "$LOCALAPPDATA/electron/Cache" || true
+              fi
+              sleep $((attempt * 20))
+            fi
+          done
+
+          exit 1
 
       - name: Upload release artifacts
         uses: softprops/action-gh-release@v2
         with:
+          fail_on_unmatched_files: true
           files: |
             apps/desktop/release/*.AppImage
             apps/desktop/release/*.deb
