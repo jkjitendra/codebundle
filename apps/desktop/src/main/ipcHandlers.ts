@@ -58,7 +58,14 @@ export function registerIpcHandlers(): void {
 
     currentExportController = new AbortController();
     try {
-      return await runExporter(config, { signal: currentExportController.signal });
+      return await runExporter(config, {
+        signal: currentExportController.signal,
+        exporterCommandOptions: {
+          isPackaged: app.isPackaged,
+          resourcesPath: process.resourcesPath,
+          appPath: app.getAppPath()
+        }
+      });
     } finally {
       currentExportController = null;
     }

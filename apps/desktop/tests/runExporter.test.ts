@@ -35,7 +35,6 @@ function baseRunOptions(overrides: Partial<RunPythonExporterOptions> = {}): RunP
   return {
     executable: "python3",
     args: ["-m", "codebundle_exporter", "--config", "/tmp/config.codebundle.tmp.json"],
-    exporterPythonPath: "/repo/exporter-python",
     timeoutMs: 100,
     cwd: "/repo/apps/desktop",
     env: {},
@@ -133,8 +132,13 @@ describe("runExporter process behavior", () => {
       {
         writeConfig: async () => ({ config: {} as never, tempConfigPath: "/tmp/config.codebundle.tmp.json" }),
         cleanupOldTempConfigs: async () => undefined,
-        resolvePython: async () => ({ success: true, command: { executable: "python3", baseArgs: [], version: "3.12.0" } }),
-        resolveExporterPythonPath: async () => null
+        resolveExporterCommand: async () => ({
+          success: false,
+          error: {
+            code: "EXPORTER_PYTHON_NOT_FOUND",
+            message: "The local Python exporter package was not found."
+          }
+        })
       }
     );
 
@@ -151,8 +155,15 @@ describe("runExporter process behavior", () => {
       {
         writeConfig: async () => ({ config: {} as never, tempConfigPath: "/tmp/config.codebundle.tmp.json" }),
         cleanupOldTempConfigs: async () => undefined,
-        resolvePython: async () => ({ success: true, command: { executable: "python3", baseArgs: [], version: "3.12.0" } }),
-        resolveExporterPythonPath: async () => "/repo/exporter-python",
+        resolveExporterCommand: async () => ({
+          success: true,
+          command: {
+            executable: "python3",
+            argsPrefix: ["-m", "codebundle_exporter"],
+            env: { PYTHONPATH: "/repo/exporter-python" },
+            mode: "dev-python"
+          }
+        }),
         runPython: async () => parseExporterResult(successStdout, "", 0),
         cleanupTempConfig: cleanup
       }
@@ -160,6 +171,66 @@ describe("runExporter process behavior", () => {
 
     expect(result.success).toBe(true);
     expect(cleanup).toHaveBeenCalledWith("/tmp/config.codebundle.tmp.json");
+  });
+
+  it("uses argsPrefix when running a packaged sidecar command", async () => {
+    const runPython = vi.fn(async () => parseExporterResult(successStdout, "", 0));
+
+    await runExporter(
+      {},
+      {
+        writeConfig: async () => ({ config: {} as never, tempConfigPath: "/tmp/config.codebundle.tmp.json" }),
+        cleanupOldTempConfigs: async () => undefined,
+        cleanupTempConfig: async () => undefined,
+        resolveExporterCommand: async () => ({
+          success: true,
+          command: {
+            executable: "/app/resources/sidecars/codebundle-exporter",
+            argsPrefix: [],
+            mode: "bundled-sidecar"
+          }
+        }),
+        runPython
+      }
+    );
+
+    expect(runPython).toHaveBeenCalledWith(
+      expect.objectContaining({
+        executable: "/app/resources/sidecars/codebundle-exporter",
+        args: ["--config", "/tmp/config.codebundle.tmp.json"]
+      })
+    );
+  });
+
+  it("uses dev Python command prefix when running in development mode", async () => {
+    const runPython = vi.fn(async () => parseExporterResult(successStdout, "", 0));
+
+    await runExporter(
+      {},
+      {
+        writeConfig: async () => ({ config: {} as never, tempConfigPath: "/tmp/config.codebundle.tmp.json" }),
+        cleanupOldTempConfigs: async () => undefined,
+        cleanupTempConfig: async () => undefined,
+        resolveExporterCommand: async () => ({
+          success: true,
+          command: {
+            executable: "python3",
+            argsPrefix: ["-m", "codebundle_exporter"],
+            env: { PYTHONPATH: "/repo/exporter-python" },
+            mode: "dev-python"
+          }
+        }),
+        runPython
+      }
+    );
+
+    expect(runPython).toHaveBeenCalledWith(
+      expect.objectContaining({
+        executable: "python3",
+        args: ["-m", "codebundle_exporter", "--config", "/tmp/config.codebundle.tmp.json"],
+        env: { PYTHONPATH: "/repo/exporter-python" }
+      })
+    );
   });
 
   it("handles cancel behavior", async () => {

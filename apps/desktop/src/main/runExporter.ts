@@ -1,11 +1,14 @@
 import { spawn } from "node:child_process";
 import type { ChildProcessByStdio } from "node:child_process";
 import type { Readable } from "node:stream";
-import { access, unlink } from "node:fs/promises";
-import { resolve } from "node:path";
+import { unlink } from "node:fs/promises";
 import type { CodeBundleExportConfig, RunExportFailure, RunExportResult, RunExportSuccess } from "../shared/types";
 import { cleanupOldTempConfigs, InvalidExportConfigError, invalidConfigResult, writeValidatedExportConfig } from "./configWriter";
-import { type PythonCommand, resolvePythonExecutable } from "./pythonResolver";
+import {
+  resolveExporterCommand,
+  type ExporterCommandResolverOptions,
+  type ExporterCommandResolutionResult
+} from "./exporterCommandResolver";
 
 const DEFAULT_TIMEOUT_MS = 120_000;
 
@@ -17,8 +20,8 @@ export interface PreparedExportConfigForRun {
 export interface RunExporterOptions {
   timeoutMs?: number;
   writeConfig?: (input: unknown) => Promise<PreparedExportConfigForRun>;
-  resolvePython?: () => Promise<{ success: true; command: PythonCommand } | RunExportFailure>;
-  resolveExporterPythonPath?: () => Promise<string | null>;
+  resolveExporterCommand?: () => Promise<ExporterCommandResolutionResult>;
+  exporterCommandOptions?: ExporterCommandResolverOptions;
   runPython?: (options: RunPythonExporterOptions) => Promise<RunExportResult>;
   cleanupTempConfig?: (tempConfigPath: string) => Promise<void>;
   cleanupOldTempConfigs?: () => Promise<void>;
@@ -28,7 +31,6 @@ export interface RunExporterOptions {
 export interface RunPythonExporterOptions {
   executable: string;
   args: string[];
-  exporterPythonPath: string;
   timeoutMs: number;
   cwd?: string;
   env?: NodeJS.ProcessEnv;
@@ -53,27 +55,15 @@ export async function runExporter(input: unknown, options: RunExporterOptions = 
     if (options.signal?.aborted) {
       return exportCancelled();
     }
-    const python = await (options.resolvePython ?? resolvePythonExecutable)();
-    if (!python.success) {
-      return python;
-    }
-
-    if (options.signal?.aborted) {
-      return exportCancelled();
-    }
-    const exporterPythonPath = await (options.resolveExporterPythonPath ?? (() => resolveExporterPythonPath()))();
-    if (!exporterPythonPath) {
-      return failure(
-        "EXPORTER_PYTHON_NOT_FOUND",
-        "The local Python exporter package was not found.",
-        "Expected exporter-python/codebundle_exporter next to apps/desktop."
-      );
+    const exporterCommand = await (options.resolveExporterCommand ?? (() => resolveExporterCommand(options.exporterCommandOptions)))();
+    if (!exporterCommand.success) {
+      return exporterCommand;
     }
 
     const result = await (options.runPython ?? runPythonExporter)({
-      executable: python.command.executable,
-      args: [...python.command.baseArgs, "-m", "codebundle_exporter", "--config", tempConfigPath],
-      exporterPythonPath,
+      executable: exporterCommand.command.executable,
+      args: [...exporterCommand.command.argsPrefix, "--config", tempConfigPath],
+      env: exporterCommand.command.env,
       timeoutMs: options.timeoutMs ?? DEFAULT_TIMEOUT_MS,
       signal: options.signal
     });
@@ -105,10 +95,7 @@ export async function runPythonExporter(options: RunPythonExporterOptions): Prom
     }
     const child = spawnImpl(options.executable, options.args, {
       cwd: options.cwd ?? process.cwd(),
-      env: {
-        ...(options.env ?? process.env),
-        PYTHONPATH: mergePythonPath(options.exporterPythonPath, (options.env ?? process.env).PYTHONPATH)
-      },
+      env: options.env ?? process.env,
       windowsHide: true,
       stdio: ["ignore", "pipe", "pipe"]
     }) as unknown as ChildProcessByStdio<null, Readable, Readable>;
@@ -198,29 +185,6 @@ export function parseExporterResult(stdout: string, stderr: string, exitCode: nu
   }
 
   return failure("EXPORTER_STDOUT_INVALID", "The Python exporter returned invalid output.", "stdout JSON did not match the expected contract.");
-}
-
-export async function resolveExporterPythonPath(appPath = process.cwd()): Promise<string | null> {
-  const candidates = [
-    resolve(appPath, "../../exporter-python"),
-    resolve(process.cwd(), "../../exporter-python"),
-    resolve(__dirname, "../../../../exporter-python")
-  ];
-
-  for (const candidate of candidates) {
-    try {
-      await access(resolve(candidate, "codebundle_exporter"));
-      return candidate;
-    } catch {
-      // Try next candidate.
-    }
-  }
-
-  return null;
-}
-
-export function mergePythonPath(exporterPythonPath: string, existingPythonPath: string | undefined): string {
-  return existingPythonPath ? `${exporterPythonPath}${process.platform === "win32" ? ";" : ":"}${existingPythonPath}` : exporterPythonPath;
 }
 
 function parseJsonObject(value: string): Record<string, unknown> | null {
