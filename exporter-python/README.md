@@ -1,8 +1,12 @@
 # CodeBundle Python Exporter
 
-Standalone Python CLI exporter for CodeBundle automation, scripting, terminal usage, and future CI/CD usage.
+Standalone Python CLI exporter for CodeBundle automation, scripting, terminal usage, desktop integration, and future CI/CD usage.
+
+The exporter reads a JSON config, scans allowed text files under `projectRoot`, and writes one Markdown or text output file. It never uploads files.
 
 ## Install
+
+From the repository root:
 
 ```bash
 pip install -e exporter-python
@@ -20,7 +24,35 @@ Development direct-file invocation is also supported:
 python exporter-python/codebundle_exporter/main.py --config shared/codebundle.config.example.json
 ```
 
-## Contract
+## Sidecar Build
+
+The desktop packaging foundation can build this exporter as a PyInstaller sidecar:
+
+```bash
+cd apps/desktop
+npm run sidecar:build
+```
+
+Generated sidecars are written under `resources/sidecars/current/` and are ignored by Git.
+
+## Config Contract
+
+The config schema lives in `shared/codebundle-config.schema.json`.
+
+Required fields:
+
+- `projectRoot`
+- `outputFile`
+- `format`
+- `mode`
+
+Supported modes:
+
+- `selected`: use `files` and `folders`.
+- `include`: use `include` glob patterns.
+- `all`: scan all allowed readable text files.
+
+## stdout Contract
 
 stdout contains exactly one JSON object. stderr may contain human-readable diagnostics.
 
@@ -53,6 +85,10 @@ Failure:
   }
 }
 ```
+
+## Default Excludes
+
+Defaults skip `.git`, `node_modules`, build outputs, virtualenvs, lock files, `.env`, credentials, keys, common archives, and common binary media formats.
 
 ## Tests
 

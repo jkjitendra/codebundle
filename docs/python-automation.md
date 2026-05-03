@@ -1,10 +1,14 @@
 # Python CLI Automation
 
-CodeBundle's Python exporter is a local-first CLI. It reads a JSON config, scans files under `projectRoot`, and writes a Markdown or text export to `outputFile`.
+Python CLI automation means CodeBundle can run from a terminal, shell script, or future CI job without opening the desktop app.
+
+The exporter is local-first. It reads a JSON config, scans files under `projectRoot`, and writes a Markdown or text export to `outputFile`.
 
 The CLI prints exactly one JSON object to stdout. Scripts and future desktop code should parse stdout, not stderr.
 
 ## Install
+
+Run these commands from the repository root unless stated otherwise.
 
 ```bash
 pip install -e exporter-python
