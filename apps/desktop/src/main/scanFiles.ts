@@ -1,5 +1,5 @@
 import { lstat, readdir, readFile, realpath, stat } from "node:fs/promises";
-import { extname, join, relative } from "node:path";
+import { basename, extname, join, relative } from "node:path";
 import type { Dirent } from "node:fs";
 import type { ScanNode, ScanProjectOptions, ScanProjectResult, ScanSummary } from "../shared/types";
 import { DEFAULT_EXCLUDES } from "./defaultRules";
@@ -43,7 +43,7 @@ export async function scanProject(options: ScanProjectOptions): Promise<ScanProj
     projectRoot,
     realProjectRoot,
     maxFileSizeBytes: Math.max(1, options.maxFileSizeKb) * 1024,
-    excludePatterns,
+    excludePatterns: excludePatterns.map((pattern) => normalizeExcludePattern(pattern, basename(projectRoot))),
     followSymlinks: options.followSymlinks,
     summary,
     nodes: []
@@ -193,13 +193,18 @@ async function isProbablyBinary(path: string): Promise<boolean> {
   return controlCount / sample.length > 0.3;
 }
 
-export function isExcludedPath(relativePath: string, isDirectory: boolean, patterns: readonly string[]): boolean {
+export function isExcludedPath(
+  relativePath: string,
+  isDirectory: boolean,
+  patterns: readonly string[],
+  projectRootBasename?: string
+): boolean {
   const normalizedPath = normalizeRelativePath(relativePath);
-  return patterns.some((pattern) => matchesGlob(normalizedPath, isDirectory, pattern));
+  return patterns.some((pattern) => matchesGlob(normalizedPath, isDirectory, pattern, projectRootBasename));
 }
 
-function matchesGlob(relativePath: string, isDirectory: boolean, pattern: string): boolean {
-  const normalizedPattern = normalizeRelativePath(pattern);
+function matchesGlob(relativePath: string, isDirectory: boolean, pattern: string, projectRootBasename?: string): boolean {
+  const normalizedPattern = normalizeExcludePattern(pattern, projectRootBasename);
   if (!normalizedPattern) {
     return false;
   }
@@ -262,8 +267,22 @@ function escapeRegExp(value: string): string {
   return value.replace(/[|\\{}()[\]^$+?.]/g, "\\$&");
 }
 
+function normalizeExcludePattern(value: string, projectRootBasename?: string): string {
+  let normalized = normalizeRelativePath(value);
+  if (projectRootBasename) {
+    const normalizedRootName = normalizeRelativePath(projectRootBasename);
+    if (normalized === normalizedRootName) {
+      return "";
+    }
+    if (normalized.startsWith(`${normalizedRootName}/`)) {
+      normalized = normalized.slice(normalizedRootName.length + 1);
+    }
+  }
+  return normalized;
+}
+
 function normalizeRelativePath(value: string): string {
-  return value.replaceAll("\\", "/").replace(/^\/+/, "").replace(/\/+$/, "");
+  return value.trim().replaceAll("\\", "/").replace(/^\/+/, "").replace(/\/+$/, "");
 }
 
 function toRelativePath(projectRoot: string, absolutePath: string): string {

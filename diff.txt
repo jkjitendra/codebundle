@@ -1,0 +1,617 @@
+diff --git a/apps/desktop/src/main/scanFiles.ts b/apps/desktop/src/main/scanFiles.ts
+index 717548b..b527d50 100644
+--- a/apps/desktop/src/main/scanFiles.ts
++++ b/apps/desktop/src/main/scanFiles.ts
+@@ -1,5 +1,5 @@
+ import { lstat, readdir, readFile, realpath, stat } from "node:fs/promises";
+-import { extname, join, relative } from "node:path";
++import { basename, extname, join, relative } from "node:path";
+ import type { Dirent } from "node:fs";
+ import type { ScanNode, ScanProjectOptions, ScanProjectResult, ScanSummary } from "../shared/types";
+ import { DEFAULT_EXCLUDES } from "./defaultRules";
+@@ -43,7 +43,7 @@ export async function scanProject(options: ScanProjectOptions): Promise<ScanProj
+     projectRoot,
+     realProjectRoot,
+     maxFileSizeBytes: Math.max(1, options.maxFileSizeKb) * 1024,
+-    excludePatterns,
++    excludePatterns: excludePatterns.map((pattern) => normalizeExcludePattern(pattern, basename(projectRoot))),
+     followSymlinks: options.followSymlinks,
+     summary,
+     nodes: []
+@@ -193,13 +193,18 @@ async function isProbablyBinary(path: string): Promise<boolean> {
+   return controlCount / sample.length > 0.3;
+ }
+ 
+-export function isExcludedPath(relativePath: string, isDirectory: boolean, patterns: readonly string[]): boolean {
++export function isExcludedPath(
++  relativePath: string,
++  isDirectory: boolean,
++  patterns: readonly string[],
++  projectRootBasename?: string
++): boolean {
+   const normalizedPath = normalizeRelativePath(relativePath);
+-  return patterns.some((pattern) => matchesGlob(normalizedPath, isDirectory, pattern));
++  return patterns.some((pattern) => matchesGlob(normalizedPath, isDirectory, pattern, projectRootBasename));
+ }
+ 
+-function matchesGlob(relativePath: string, isDirectory: boolean, pattern: string): boolean {
+-  const normalizedPattern = normalizeRelativePath(pattern);
++function matchesGlob(relativePath: string, isDirectory: boolean, pattern: string, projectRootBasename?: string): boolean {
++  const normalizedPattern = normalizeExcludePattern(pattern, projectRootBasename);
+   if (!normalizedPattern) {
+     return false;
+   }
+@@ -262,8 +267,22 @@ function escapeRegExp(value: string): string {
+   return value.replace(/[|\\{}()[\]^$+?.]/g, "\\$&");
+ }
+ 
++function normalizeExcludePattern(value: string, projectRootBasename?: string): string {
++  let normalized = normalizeRelativePath(value);
++  if (projectRootBasename) {
++    const normalizedRootName = normalizeRelativePath(projectRootBasename);
++    if (normalized === normalizedRootName) {
++      return "";
++    }
++    if (normalized.startsWith(`${normalizedRootName}/`)) {
++      normalized = normalized.slice(normalizedRootName.length + 1);
++    }
++  }
++  return normalized;
++}
++
+ function normalizeRelativePath(value: string): string {
+-  return value.replaceAll("\\", "/").replace(/^\/+/, "").replace(/\/+$/, "");
++  return value.trim().replaceAll("\\", "/").replace(/^\/+/, "").replace(/\/+$/, "");
+ }
+ 
+ function toRelativePath(projectRoot: string, absolutePath: string): string {
+diff --git a/apps/desktop/src/renderer/components/ExcludeRulesEditor.tsx b/apps/desktop/src/renderer/components/ExcludeRulesEditor.tsx
+index 48918d6..185e126 100644
+--- a/apps/desktop/src/renderer/components/ExcludeRulesEditor.tsx
++++ b/apps/desktop/src/renderer/components/ExcludeRulesEditor.tsx
+@@ -8,7 +8,10 @@ export function ExcludeRulesEditor({ value, onChange }: ExcludeRulesEditorProps)
+     <section style={styles.section}>
+       <div>
+         <h2 style={styles.heading}>Exclude Patterns</h2>
+-        <p style={styles.copy}>One glob pattern per line. Default excludes are always applied.</p>
++        <p style={styles.copy}>
++          Patterns are relative to the selected project folder. Example: apps/desktop/node_modules/**. If you paste
++          codebundle/apps/..., CodeBundle will normalize it.
++        </p>
+       </div>
+       <textarea
+         value={value}
+diff --git a/apps/desktop/tests/scanFiles.test.ts b/apps/desktop/tests/scanFiles.test.ts
+index 92bad77..a8edd34 100644
+--- a/apps/desktop/tests/scanFiles.test.ts
++++ b/apps/desktop/tests/scanFiles.test.ts
+@@ -12,6 +12,14 @@ async function createFixture(): Promise<string> {
+   return root;
+ }
+ 
++async function createNamedProjectFixture(projectName: string): Promise<{ parent: string; root: string }> {
++  const parent = await mkdtemp(join(tmpdir(), "codebundle-scan-parent-"));
++  const root = join(parent, projectName);
++  await mkdir(join(root, "apps", "desktop", "src"), { recursive: true });
++  await writeFile(join(root, "apps", "desktop", "src", "app.ts"), "console.log('ok');\n", "utf8");
++  return { parent, root };
++}
++
+ async function createExcludedDirectory(root: string, relativePath: string): Promise<void> {
+   const directory = join(root, ...relativePath.split("/"));
+   await mkdir(directory, { recursive: true });
+@@ -104,6 +112,77 @@ describe("scanFiles excludes", () => {
+     expect(isExcludedPath("node_modules", true, DEFAULT_EXCLUDES)).toBe(true);
+     expect(isExcludedPath("packages/app/node_modules", true, DEFAULT_EXCLUDES)).toBe(true);
+     expect(isExcludedPath("packages/app/node_modules/pkg/index.js", false, DEFAULT_EXCLUDES)).toBe(true);
++    expect(isExcludedPath("apps/desktop/node_modules/pkg/index.js", false, ["codebundle/apps/desktop/node_modules/**"], "codebundle")).toBe(true);
+     expect(isExcludedPath("src/app.ts", false, DEFAULT_EXCLUDES)).toBe(false);
+   });
++
++  it("normalizes custom patterns that start with the project root basename", async () => {
++    const { parent, root } = await createNamedProjectFixture("codebundle");
++    await createExcludedDirectory(root, "apps/desktop/node_modules/pkg");
++
++    const result = await scanProject({
++      projectRoot: root,
++      maxFileSizeKb: 500,
++      exclude: ["codebundle/apps/desktop/node_modules/**"],
++      respectGitIgnore: false,
++      followSymlinks: false
++    });
++
++    expect(result.nodes.some((node) => node.path.includes("node_modules"))).toBe(false);
++    expect(result.summary.totalFiles).toBe(1);
++    expect(result.summary.skippedExcluded).toBeGreaterThanOrEqual(1);
++    await rm(parent, { recursive: true, force: true });
++  });
++
++  it("excludes .venv-build directories and descendants from a bare directory pattern", async () => {
++    const root = await createFixture();
++    await createExcludedDirectory(root, ".venv-build/bin");
++
++    const result = await scanProject({
++      projectRoot: root,
++      maxFileSizeKb: 500,
++      exclude: [".venv-build"],
++      respectGitIgnore: false,
++      followSymlinks: false
++    });
++
++    expect(result.nodes.some((node) => node.path.includes(".venv-build"))).toBe(false);
++    expect(result.summary.skippedExcluded).toBeGreaterThanOrEqual(1);
++    await rm(root, { recursive: true, force: true });
++  });
++
++  it("excludes package-lock.json by default in nested app folders", async () => {
++    const root = await createFixture();
++    await mkdir(join(root, "apps", "desktop"), { recursive: true });
++    await writeFile(join(root, "apps", "desktop", "package-lock.json"), "{}", "utf8");
++
++    const result = await scanProject({
++      projectRoot: root,
++      maxFileSizeKb: 500,
++      exclude: [],
++      respectGitIgnore: false,
++      followSymlinks: false
++    });
++
++    expect(result.nodes.some((node) => node.path === "apps/desktop/package-lock.json")).toBe(false);
++    expect(result.summary.skippedExcluded).toBeGreaterThanOrEqual(1);
++    await rm(root, { recursive: true, force: true });
++  });
++
++  it.each(["node_modules", "node_modules/**"])("excludes nested node_modules with %s", async (pattern) => {
++    const root = await createFixture();
++    await createExcludedDirectory(root, "apps/desktop/node_modules/pkg");
++
++    const result = await scanProject({
++      projectRoot: root,
++      maxFileSizeKb: 500,
++      exclude: [pattern],
++      respectGitIgnore: false,
++      followSymlinks: false
++    });
++
++    expect(result.nodes.some((node) => node.path.includes("node_modules"))).toBe(false);
++    expect(result.summary.skippedExcluded).toBeGreaterThanOrEqual(1);
++    await rm(root, { recursive: true, force: true });
++  });
+ });
+diff --git a/exporter-python/codebundle_exporter/config.py b/exporter-python/codebundle_exporter/config.py
+index 09e08e3..e8fb559 100644
+--- a/exporter-python/codebundle_exporter/config.py
++++ b/exporter-python/codebundle_exporter/config.py
+@@ -84,7 +84,7 @@ def parse_config(raw: dict[str, Any]) -> ExportConfig:
+     files = _string_tuple(raw.get("files", ()), "files")
+     folders = _string_tuple(raw.get("folders", ()), "folders")
+     include = _string_tuple(raw.get("include", ()), "include")
+-    exclude = _string_tuple(raw.get("exclude", ()), "exclude")
++    raw_exclude = _string_tuple(raw.get("exclude", ()), "exclude")
+ 
+     if mode == "include" and not include:
+         raise InvalidConfigError("include mode requires at least one include pattern")
+@@ -110,7 +110,7 @@ def parse_config(raw: dict[str, Any]) -> ExportConfig:
+         files=files,
+         folders=folders,
+         include=include,
+-        exclude=tuple(DEFAULT_EXCLUDES) + exclude,
++        exclude=normalize_exclude_patterns(tuple(DEFAULT_EXCLUDES) + raw_exclude, project_root),
+         max_file_size_kb=max_file_size_kb,
+         skip_binary_files=skip_binary_files,
+         respect_git_ignore=respect_git_ignore,
+@@ -130,6 +130,24 @@ def assert_relative_inside(project_root: Path, relative_path: str, label: str) -
+     return candidate
+ 
+ 
++def normalize_exclude_patterns(patterns: tuple[str, ...], project_root: Path) -> tuple[str, ...]:
++    return tuple(
++        normalized
++        for pattern in patterns
++        if (normalized := normalize_exclude_pattern(pattern, project_root))
++    )
++
++
++def normalize_exclude_pattern(pattern: str, project_root: Path) -> str:
++    normalized = pattern.strip().replace("\\", "/").lstrip("/").rstrip("/")
++    root_name = project_root.name.strip().replace("\\", "/").strip("/")
++    if root_name and normalized == root_name:
++        return ""
++    if root_name and normalized.startswith(f"{root_name}/"):
++        normalized = normalized[len(root_name) + 1 :]
++    return normalized
++
++
+ def _require(raw: dict[str, Any], key: str) -> None:
+     if key not in raw:
+         raise InvalidConfigError(f"{key} is required")
+diff --git a/exporter-python/codebundle_exporter/scanner.py b/exporter-python/codebundle_exporter/scanner.py
+index f445747..faf63e1 100644
+--- a/exporter-python/codebundle_exporter/scanner.py
++++ b/exporter-python/codebundle_exporter/scanner.py
+@@ -2,11 +2,12 @@
+ 
+ from __future__ import annotations
+ 
++import os
+ from dataclasses import dataclass, field
+ from fnmatch import fnmatch
+ from pathlib import Path
+ 
+-from .config import ExportConfig, assert_relative_inside
++from .config import ExportConfig, assert_relative_inside, normalize_exclude_pattern
+ from .errors import InvalidConfigError
+ from .reader import is_probably_binary
+ 
+@@ -46,7 +47,7 @@ class ScanResult:
+ def scan_files(config: ExportConfig) -> ScanResult:
+     summary = ScanSummary()
+     excludes = _effective_excludes(config)
+-    candidates = _candidate_paths(config, summary)
++    candidates = _candidate_paths(config, excludes, summary)
+     seen: set[Path] = set()
+     entries: list[FileEntry] = []
+ 
+@@ -65,15 +66,15 @@ def scan_files(config: ExportConfig) -> ScanResult:
+     return ScanResult(files=entries, summary=summary)
+ 
+ 
+-def _candidate_paths(config: ExportConfig, summary: ScanSummary) -> list[Path]:
++def _candidate_paths(config: ExportConfig, excludes: tuple[str, ...], summary: ScanSummary) -> list[Path]:
+     if config.mode == "selected":
+-        return _selected_candidates(config, summary)
++        return _selected_candidates(config, excludes, summary)
+     if config.mode == "include":
+-        return _include_candidates(config)
+-    return _all_candidates(config)
++        return _include_candidates(config, excludes, summary)
++    return _all_candidates(config, excludes, summary)
+ 
+ 
+-def _selected_candidates(config: ExportConfig, summary: ScanSummary) -> list[Path]:
++def _selected_candidates(config: ExportConfig, excludes: tuple[str, ...], summary: ScanSummary) -> list[Path]:
+     candidates: list[Path] = []
+     for relative in config.files:
+         path = assert_relative_inside(config.project_root, relative, "files")
+@@ -93,30 +94,66 @@ def _selected_candidates(config: ExportConfig, summary: ScanSummary) -> list[Pat
+         if not path.is_dir():
+             summary.skippedInvalid += 1
+             continue
+-        candidates.extend(_walk_directory(path, config.follow_symlinks))
++        relative_posix = path.relative_to(config.project_root).as_posix()
++        if is_excluded(relative_posix, excludes):
++            summary.skippedExcluded += 1
++            continue
++        candidates.extend(_walk_directory(config.project_root, path, config.follow_symlinks, excludes, summary))
+     return candidates
+ 
+ 
+-def _include_candidates(config: ExportConfig) -> list[Path]:
++def _include_candidates(config: ExportConfig, excludes: tuple[str, ...], summary: ScanSummary) -> list[Path]:
+     candidates: list[Path] = []
+-    for pattern in config.include:
+-        if Path(pattern).is_absolute() or ".." in Path(pattern).parts:
+-            raise InvalidConfigError(f"include pattern escapes projectRoot: {pattern}")
+-        candidates.extend(path for path in config.project_root.glob(pattern) if path.is_file())
++    include_patterns: list[str] = []
++
++    for raw_pattern in config.include:
++        normalized_pattern = _normalize_relative_path(raw_pattern)
++
++        if Path(raw_pattern).expanduser().is_absolute() or ".." in Path(normalized_pattern).parts:
++            raise InvalidConfigError(f"include pattern escapes projectRoot: {raw_pattern}")
++
++        include_patterns.append(normalized_pattern)
++
++    for path in _walk_directory(config.project_root, config.project_root, config.follow_symlinks, excludes, summary):
++        relative_posix = path.relative_to(config.project_root).as_posix()
++        if any(_matches_include_pattern(relative_posix, pattern) for pattern in include_patterns):
++            candidates.append(path)
++
+     return candidates
+ 
+ 
+-def _all_candidates(config: ExportConfig) -> list[Path]:
+-    return _walk_directory(config.project_root, config.follow_symlinks)
++def _all_candidates(config: ExportConfig, excludes: tuple[str, ...], summary: ScanSummary) -> list[Path]:
++    return _walk_directory(config.project_root, config.project_root, config.follow_symlinks, excludes, summary)
+ 
+ 
+-def _walk_directory(root: Path, follow_symlinks: bool) -> list[Path]:
++def _walk_directory(
++    project_root: Path,
++    root: Path,
++    follow_symlinks: bool,
++    excludes: tuple[str, ...],
++    summary: ScanSummary,
++) -> list[Path]:
+     paths: list[Path] = []
+-    for child in root.rglob("*"):
+-        if child.is_symlink() and not follow_symlinks:
+-            continue
+-        if child.is_file():
+-            paths.append(child)
++    for current_root, dirnames, filenames in os.walk(root, topdown=True, followlinks=follow_symlinks):
++        current_path = Path(current_root)
++        allowed_dirnames: list[str] = []
++        for dirname in dirnames:
++            directory_path = current_path / dirname
++            if directory_path.is_symlink() and not follow_symlinks:
++                continue
++            try:
++                relative_posix = directory_path.relative_to(project_root).as_posix()
++            except ValueError:
++                summary.skippedInvalid += 1
++                continue
++            if is_excluded(relative_posix, excludes):
++                summary.skippedExcluded += 1
++                continue
++            allowed_dirnames.append(dirname)
++        dirnames[:] = allowed_dirnames
++
++        for filename in filenames:
++            paths.append(current_path / filename)
+     return paths
+ 
+ 
+@@ -182,25 +219,58 @@ def _effective_excludes(config: ExportConfig) -> tuple[str, ...]:
+         if not stripped or stripped.startswith("#") or stripped.startswith("!"):
+             continue
+         if stripped.endswith("/"):
+-            patterns.append(f"{stripped.rstrip('/')}/**")
++            patterns.append(normalize_exclude_pattern(f"{stripped.rstrip('/')}/**", config.project_root))
+         else:
+-            patterns.append(stripped.lstrip("/"))
++            patterns.append(normalize_exclude_pattern(stripped, config.project_root))
+     return config.exclude + tuple(patterns)
+ 
+ 
+ def is_excluded(relative_path: str, patterns: tuple[str, ...]) -> bool:
+-    rel = relative_path.strip("/")
++    rel = _normalize_relative_path(relative_path)
++    parts = tuple(part for part in rel.split("/") if part)
+     for pattern in patterns:
+-        normalized = pattern.strip("/")
++        normalized = _normalize_relative_path(pattern)
++        if not normalized:
++            continue
+         variants = (normalized,)
+         if "**/" in normalized:
+             variants = (normalized, normalized.replace("**/", ""))
+-        if any(fnmatch(rel, variant) for variant in variants):
+-            return True
+-        if normalized.endswith("/**"):
+-            prefix = normalized[:-3].strip("/")
+-            if rel == prefix or rel.startswith(f"{prefix}/"):
++        for variant in variants:
++            if _matches_normalized_pattern(rel, parts, variant):
+                 return True
+-        if "/" not in normalized and fnmatch(Path(rel).name, normalized):
+-            return True
+     return False
++
++
++def _matches_normalized_pattern(relative_path: str, parts: tuple[str, ...], pattern: str) -> bool:
++    if pattern.endswith("/**") and _matches_subtree(relative_path, parts, pattern[:-3].strip("/")):
++        return True
++    if "/" not in pattern and any(fnmatch(part, pattern) for part in parts):
++        return True
++    if fnmatch(relative_path, pattern):
++        return True
++    if "/" in pattern and not _has_glob(pattern):
++        return relative_path == pattern or relative_path.startswith(f"{pattern}/")
++    return False
++
++
++def _matches_include_pattern(relative_path: str, pattern: str) -> bool:
++    variants = (pattern,)
++    if "**/" in pattern:
++        variants = (pattern, pattern.replace("**/", ""))
++    return any(fnmatch(relative_path, variant) for variant in variants)
++
++
++def _matches_subtree(relative_path: str, parts: tuple[str, ...], prefix: str) -> bool:
++    if not prefix:
++        return False
++    if "/" not in prefix:
++        return any(fnmatch(part, prefix) for part in parts)
++    return relative_path == prefix or relative_path.startswith(f"{prefix}/")
++
++
++def _has_glob(pattern: str) -> bool:
++    return "*" in pattern or "?" in pattern or "[" in pattern
++
++
++def _normalize_relative_path(value: str) -> str:
++    return value.strip().replace("\\", "/").lstrip("/").rstrip("/")
+diff --git a/exporter-python/tests/test_scanner.py b/exporter-python/tests/test_scanner.py
+index b8e3da1..0da6bed 100644
+--- a/exporter-python/tests/test_scanner.py
++++ b/exporter-python/tests/test_scanner.py
+@@ -1,8 +1,11 @@
+ from __future__ import annotations
+ 
++import re
++
+ import pytest
+ 
+ from codebundle_exporter.config import parse_config
++from codebundle_exporter.errors import InvalidConfigError
+ from codebundle_exporter.scanner import scan_files
+ 
+ 
+@@ -83,16 +86,96 @@ def test_include_pattern_export(tmp_path):
+     assert result.summary.skippedExcluded == 1
+ 
+ 
++def test_include_mode_prunes_default_excluded_directories(tmp_path):
++    write(tmp_path / "src" / "app.js", "console.log('ok');")
++    write(tmp_path / "node_modules" / "dep" / "index.js", "module.exports = {};")
++    write(tmp_path / "node_modules" / "dep" / "nested.js", "module.exports = {};")
++    config = make_config(
++        tmp_path,
++        tmp_path / "out.md",
++        mode="include",
++        include=["**/*.js"],
++        respectGitIgnore=False,
++    )
++
++    result = scan_files(config)
++
++    assert relative_paths(result) == ["src/app.js"]
++    assert result.summary.skippedExcluded == 1
++
++
++def test_include_mode_prunes_custom_excluded_directories(tmp_path):
++    write(tmp_path / "src" / "app.ts", "const app = true;")
++    write(tmp_path / ".venv-build" / "bin" / "python.ts", "python")
++    config = make_config(
++        tmp_path,
++        tmp_path / "out.md",
++        mode="include",
++        include=["**/*.ts"],
++        exclude=[".venv-build"],
++        respectGitIgnore=False,
++    )
++
++    result = scan_files(config)
++
++    assert relative_paths(result) == ["src/app.ts"]
++    assert result.summary.skippedExcluded == 1
++
++
++def test_include_mode_normalizes_patterns_before_matching(tmp_path):
++    write(tmp_path / "src" / "nested" / "app.ts", "const app = true;")
++    config = make_config(
++        tmp_path,
++        tmp_path / "out.md",
++        mode="include",
++        include=[r" src\nested\*.ts "],
++        respectGitIgnore=False,
++    )
++
++    result = scan_files(config)
++
++    assert relative_paths(result) == ["src/nested/app.ts"]
++
++
++def test_include_mode_rejects_absolute_raw_patterns(tmp_path):
++    absolute_pattern = str(tmp_path / "src" / "*.ts")
++    config = make_config(
++        tmp_path,
++        tmp_path / "out.md",
++        mode="include",
++        include=[absolute_pattern],
++        respectGitIgnore=False,
++    )
++
++    with pytest.raises(InvalidConfigError, match=re.escape(f"include pattern escapes projectRoot: {absolute_pattern}")):
++        scan_files(config)
++
++
++def test_include_mode_rejects_parent_traversal_after_normalization(tmp_path):
++    raw_pattern = r"src\..\secrets\*.ts"
++    config = make_config(
++        tmp_path,
++        tmp_path / "out.md",
++        mode="include",
++        include=[raw_pattern],
++        respectGitIgnore=False,
++    )
++
++    with pytest.raises(InvalidConfigError, match=re.escape(f"include pattern escapes projectRoot: {raw_pattern}")):
++        scan_files(config)
++
++
+ def test_all_mode_export(tmp_path):
+     write(tmp_path / "README.md", "# Project")
+     write(tmp_path / "src" / "app.ts", "const app = true;")
+     write(tmp_path / "node_modules" / "dep" / "index.js", "module.exports = {};")
++    write(tmp_path / "apps" / "desktop" / "package-lock.json", "{}")
+     config = make_config(tmp_path, tmp_path / "out.md", mode="all")
+ 
+     result = scan_files(config)
+ 
+     assert relative_paths(result) == ["README.md", "src/app.ts"]
+-    assert result.summary.skippedExcluded == 1
++    assert result.summary.skippedExcluded == 2
+ 
+ 
+ def test_all_mode_skips_existing_output_file_under_project_root(tmp_path):
+@@ -145,6 +228,76 @@ def test_exclude_wins_over_selected_folder(tmp_path):
+     assert result.summary.skippedExcluded == 1
+ 
+ 
++def test_root_prefixed_custom_excludes_apply_to_selected_folder(tmp_path):
++    project_root = tmp_path / "codebundle"
++    write(project_root / "apps" / "desktop" / "src" / "app.ts", "const app = true;")
++    write(project_root / "apps" / "desktop" / "node_modules" / "pkg" / "index.js", "module.exports = {};")
++    write(project_root / "apps" / "desktop" / "package-lock.json", "{}")
++    write(project_root / ".venv-build" / "bin" / "python", "python")
++    write(project_root / "README.md", "# Project")
++    config = make_config(
++        project_root,
++        project_root / "out.md",
++        folders=["apps/desktop"],
++        exclude=[
++            "codebundle/apps/desktop/node_modules/**",
++            "codebundle/apps/desktop/package-lock.json",
++            "codebundle/.venv-build",
++        ],
++        respectGitIgnore=False,
++    )
++
++    result = scan_files(config)
++
++    assert relative_paths(result) == ["apps/desktop/src/app.ts"]
++    assert "apps/desktop/node_modules/pkg/index.js" not in relative_paths(result)
++    assert "apps/desktop/package-lock.json" not in relative_paths(result)
++    assert result.summary.skippedExcluded >= 2
++
++
++def test_root_prefixed_custom_excludes_apply_to_all_mode(tmp_path):
++    project_root = tmp_path / "codebundle"
++    write(project_root / "apps" / "desktop" / "src" / "app.ts", "const app = true;")
++    write(project_root / "apps" / "desktop" / "node_modules" / "pkg" / "index.js", "module.exports = {};")
++    write(project_root / "apps" / "desktop" / "package-lock.json", "{}")
++    write(project_root / ".venv-build" / "bin" / "python", "python")
++    config = make_config(
++        project_root,
++        project_root / "out.md",
++        mode="all",
++        exclude=[
++            "codebundle/apps/desktop/node_modules/**",
++            "codebundle/apps/desktop/package-lock.json",
++            "codebundle/.venv-build",
++        ],
++        respectGitIgnore=False,
++    )
++
++    result = scan_files(config)
++
++    assert relative_paths(result) == ["apps/desktop/src/app.ts"]
++    assert ".venv-build/bin/python" not in relative_paths(result)
++    assert result.summary.skippedExcluded >= 3
++
++
++def test_bare_directory_patterns_match_any_path_segment(tmp_path):
++    write(tmp_path / "apps" / "desktop" / "src" / "app.ts", "const app = true;")
++    write(tmp_path / "apps" / "desktop" / ".venv-build" / "bin" / "python", "python")
++    write(tmp_path / "packages" / "api" / "node_modules" / "pkg" / "index.js", "module.exports = {};")
++    config = make_config(
++        tmp_path,
++        tmp_path / "out.md",
++        mode="all",
++        exclude=[".venv-build", "node_modules"],
++        respectGitIgnore=False,
++    )
++
++    result = scan_files(config)
++
++    assert relative_paths(result) == ["apps/desktop/src/app.ts"]
++    assert result.summary.skippedExcluded >= 2
++
++
+ def test_binary_skip(tmp_path):
+     binary = tmp_path / "asset.bin"
+     binary.write_bytes(b"\x00\x01\x02")
