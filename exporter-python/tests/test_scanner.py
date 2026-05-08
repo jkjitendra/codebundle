@@ -1,8 +1,11 @@
 from __future__ import annotations
 
+import re
+
 import pytest
 
 from codebundle_exporter.config import parse_config
+from codebundle_exporter.errors import InvalidConfigError
 from codebundle_exporter.scanner import scan_files
 
 
@@ -83,16 +86,96 @@ def test_include_pattern_export(tmp_path):
     assert result.summary.skippedExcluded == 1
 
 
+def test_include_mode_prunes_default_excluded_directories(tmp_path):
+    write(tmp_path / "src" / "app.js", "console.log('ok');")
+    write(tmp_path / "node_modules" / "dep" / "index.js", "module.exports = {};")
+    write(tmp_path / "node_modules" / "dep" / "nested.js", "module.exports = {};")
+    config = make_config(
+        tmp_path,
+        tmp_path / "out.md",
+        mode="include",
+        include=["**/*.js"],
+        respectGitIgnore=False,
+    )
+
+    result = scan_files(config)
+
+    assert relative_paths(result) == ["src/app.js"]
+    assert result.summary.skippedExcluded == 1
+
+
+def test_include_mode_prunes_custom_excluded_directories(tmp_path):
+    write(tmp_path / "src" / "app.ts", "const app = true;")
+    write(tmp_path / ".venv-build" / "bin" / "python.ts", "python")
+    config = make_config(
+        tmp_path,
+        tmp_path / "out.md",
+        mode="include",
+        include=["**/*.ts"],
+        exclude=[".venv-build"],
+        respectGitIgnore=False,
+    )
+
+    result = scan_files(config)
+
+    assert relative_paths(result) == ["src/app.ts"]
+    assert result.summary.skippedExcluded == 1
+
+
+def test_include_mode_normalizes_patterns_before_matching(tmp_path):
+    write(tmp_path / "src" / "nested" / "app.ts", "const app = true;")
+    config = make_config(
+        tmp_path,
+        tmp_path / "out.md",
+        mode="include",
+        include=[r" src\nested\*.ts "],
+        respectGitIgnore=False,
+    )
+
+    result = scan_files(config)
+
+    assert relative_paths(result) == ["src/nested/app.ts"]
+
+
+def test_include_mode_rejects_absolute_raw_patterns(tmp_path):
+    absolute_pattern = str(tmp_path / "src" / "*.ts")
+    config = make_config(
+        tmp_path,
+        tmp_path / "out.md",
+        mode="include",
+        include=[absolute_pattern],
+        respectGitIgnore=False,
+    )
+
+    with pytest.raises(InvalidConfigError, match=re.escape(f"include pattern escapes projectRoot: {absolute_pattern}")):
+        scan_files(config)
+
+
+def test_include_mode_rejects_parent_traversal_after_normalization(tmp_path):
+    raw_pattern = r"src\..\secrets\*.ts"
+    config = make_config(
+        tmp_path,
+        tmp_path / "out.md",
+        mode="include",
+        include=[raw_pattern],
+        respectGitIgnore=False,
+    )
+
+    with pytest.raises(InvalidConfigError, match=re.escape(f"include pattern escapes projectRoot: {raw_pattern}")):
+        scan_files(config)
+
+
 def test_all_mode_export(tmp_path):
     write(tmp_path / "README.md", "# Project")
     write(tmp_path / "src" / "app.ts", "const app = true;")
     write(tmp_path / "node_modules" / "dep" / "index.js", "module.exports = {};")
+    write(tmp_path / "apps" / "desktop" / "package-lock.json", "{}")
     config = make_config(tmp_path, tmp_path / "out.md", mode="all")
 
     result = scan_files(config)
 
     assert relative_paths(result) == ["README.md", "src/app.ts"]
-    assert result.summary.skippedExcluded == 1
+    assert result.summary.skippedExcluded == 2
 
 
 def test_all_mode_skips_existing_output_file_under_project_root(tmp_path):
@@ -143,6 +226,76 @@ def test_exclude_wins_over_selected_folder(tmp_path):
 
     assert relative_paths(result) == ["src/app.ts"]
     assert result.summary.skippedExcluded == 1
+
+
+def test_root_prefixed_custom_excludes_apply_to_selected_folder(tmp_path):
+    project_root = tmp_path / "codebundle"
+    write(project_root / "apps" / "desktop" / "src" / "app.ts", "const app = true;")
+    write(project_root / "apps" / "desktop" / "node_modules" / "pkg" / "index.js", "module.exports = {};")
+    write(project_root / "apps" / "desktop" / "package-lock.json", "{}")
+    write(project_root / ".venv-build" / "bin" / "python", "python")
+    write(project_root / "README.md", "# Project")
+    config = make_config(
+        project_root,
+        project_root / "out.md",
+        folders=["apps/desktop"],
+        exclude=[
+            "codebundle/apps/desktop/node_modules/**",
+            "codebundle/apps/desktop/package-lock.json",
+            "codebundle/.venv-build",
+        ],
+        respectGitIgnore=False,
+    )
+
+    result = scan_files(config)
+
+    assert relative_paths(result) == ["apps/desktop/src/app.ts"]
+    assert "apps/desktop/node_modules/pkg/index.js" not in relative_paths(result)
+    assert "apps/desktop/package-lock.json" not in relative_paths(result)
+    assert result.summary.skippedExcluded >= 2
+
+
+def test_root_prefixed_custom_excludes_apply_to_all_mode(tmp_path):
+    project_root = tmp_path / "codebundle"
+    write(project_root / "apps" / "desktop" / "src" / "app.ts", "const app = true;")
+    write(project_root / "apps" / "desktop" / "node_modules" / "pkg" / "index.js", "module.exports = {};")
+    write(project_root / "apps" / "desktop" / "package-lock.json", "{}")
+    write(project_root / ".venv-build" / "bin" / "python", "python")
+    config = make_config(
+        project_root,
+        project_root / "out.md",
+        mode="all",
+        exclude=[
+            "codebundle/apps/desktop/node_modules/**",
+            "codebundle/apps/desktop/package-lock.json",
+            "codebundle/.venv-build",
+        ],
+        respectGitIgnore=False,
+    )
+
+    result = scan_files(config)
+
+    assert relative_paths(result) == ["apps/desktop/src/app.ts"]
+    assert ".venv-build/bin/python" not in relative_paths(result)
+    assert result.summary.skippedExcluded >= 3
+
+
+def test_bare_directory_patterns_match_any_path_segment(tmp_path):
+    write(tmp_path / "apps" / "desktop" / "src" / "app.ts", "const app = true;")
+    write(tmp_path / "apps" / "desktop" / ".venv-build" / "bin" / "python", "python")
+    write(tmp_path / "packages" / "api" / "node_modules" / "pkg" / "index.js", "module.exports = {};")
+    config = make_config(
+        tmp_path,
+        tmp_path / "out.md",
+        mode="all",
+        exclude=[".venv-build", "node_modules"],
+        respectGitIgnore=False,
+    )
+
+    result = scan_files(config)
+
+    assert relative_paths(result) == ["apps/desktop/src/app.ts"]
+    assert result.summary.skippedExcluded >= 2
 
 
 def test_binary_skip(tmp_path):

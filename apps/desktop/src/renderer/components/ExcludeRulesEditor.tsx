@@ -8,7 +8,10 @@ export function ExcludeRulesEditor({ value, onChange }: ExcludeRulesEditorProps)
     <section style={styles.section}>
       <div>
         <h2 style={styles.heading}>Exclude Patterns</h2>
-        <p style={styles.copy}>One glob pattern per line. Default excludes are always applied.</p>
+        <p style={styles.copy}>
+          Patterns are relative to the selected project folder. Example: apps/desktop/node_modules/**. If you paste
+          codebundle/apps/..., CodeBundle will normalize it.
+        </p>
       </div>
       <textarea
         value={value}

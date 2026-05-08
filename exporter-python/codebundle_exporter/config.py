@@ -84,7 +84,7 @@ def parse_config(raw: dict[str, Any]) -> ExportConfig:
     files = _string_tuple(raw.get("files", ()), "files")
     folders = _string_tuple(raw.get("folders", ()), "folders")
     include = _string_tuple(raw.get("include", ()), "include")
-    exclude = _string_tuple(raw.get("exclude", ()), "exclude")
+    raw_exclude = _string_tuple(raw.get("exclude", ()), "exclude")
 
     if mode == "include" and not include:
         raise InvalidConfigError("include mode requires at least one include pattern")
@@ -110,7 +110,7 @@ def parse_config(raw: dict[str, Any]) -> ExportConfig:
         files=files,
         folders=folders,
         include=include,
-        exclude=tuple(DEFAULT_EXCLUDES) + exclude,
+        exclude=normalize_exclude_patterns(tuple(DEFAULT_EXCLUDES) + raw_exclude, project_root),
         max_file_size_kb=max_file_size_kb,
         skip_binary_files=skip_binary_files,
         respect_git_ignore=respect_git_ignore,
@@ -128,6 +128,24 @@ def assert_relative_inside(project_root: Path, relative_path: str, label: str) -
     except ValueError as exc:
         raise InvalidConfigError(f"{label} entry escapes projectRoot: {relative_path}") from exc
     return candidate
+
+
+def normalize_exclude_patterns(patterns: tuple[str, ...], project_root: Path) -> tuple[str, ...]:
+    return tuple(
+        normalized
+        for pattern in patterns
+        if (normalized := normalize_exclude_pattern(pattern, project_root))
+    )
+
+
+def normalize_exclude_pattern(pattern: str, project_root: Path) -> str:
+    normalized = pattern.strip().replace("\\", "/").lstrip("/").rstrip("/")
+    root_name = project_root.name.strip().replace("\\", "/").strip("/")
+    if root_name and normalized == root_name:
+        return ""
+    if root_name and normalized.startswith(f"{root_name}/"):
+        normalized = normalized[len(root_name) + 1 :]
+    return normalized
 
 
 def _require(raw: dict[str, Any], key: str) -> None:
