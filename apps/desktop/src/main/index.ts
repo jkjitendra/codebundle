@@ -1,5 +1,6 @@
 import { app, BrowserWindow } from "electron";
 import { join } from "node:path";
+import { setupAutoUpdater } from "./appUpdater";
 import { cleanupOldTempConfigs } from "./configWriter";
 import { registerIpcHandlers } from "./ipcHandlers";
 
@@ -32,6 +33,7 @@ app.whenReady().then(() => {
   registerIpcHandlers();
   void cleanupOldTempConfigs();
   createWindow();
+  setupAutoUpdater(() => mainWindow);
 
   app.on("activate", () => {
     if (BrowserWindow.getAllWindows().length === 0) {

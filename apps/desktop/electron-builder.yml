@@ -1,5 +1,9 @@
 appId: in.jkjitendra.codebundle
 productName: CodeBundle
+publish:
+  provider: github
+  owner: jkjitendra
+  repo: codebundle
 directories:
   output: release
 artifactName: ${productName}-${version}-${arch}.${ext}
