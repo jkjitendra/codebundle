@@ -118,6 +118,13 @@ jobs:
 
           exit 1
 
+      - name: List release files
+        working-directory: apps/desktop
+        shell: bash
+        run: |
+          echo "Release files:"
+          find release -maxdepth 1 -type f -print | sort
+
       - name: Upload macOS release artifacts
         if: runner.os == 'macOS'
         uses: softprops/action-gh-release@v3
@@ -153,6 +160,5 @@ jobs:
             apps/desktop/release/*.deb
             apps/desktop/release/*.tar.gz
             apps/desktop/release/latest-linux.yml
-            apps/desktop/release/*.blockmap
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
