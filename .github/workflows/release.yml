@@ -126,6 +126,8 @@ jobs:
           files: |
             apps/desktop/release/*.dmg
             apps/desktop/release/*.zip
+            apps/desktop/release/latest-mac.yml
+            apps/desktop/release/*.blockmap
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
@@ -136,6 +138,8 @@ jobs:
           fail_on_unmatched_files: true
           files: |
             apps/desktop/release/*.exe
+            apps/desktop/release/latest.yml
+            apps/desktop/release/*.blockmap
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
@@ -148,5 +152,7 @@ jobs:
             apps/desktop/release/*.AppImage
             apps/desktop/release/*.deb
             apps/desktop/release/*.tar.gz
+            apps/desktop/release/latest-linux.yml
+            apps/desktop/release/*.blockmap
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

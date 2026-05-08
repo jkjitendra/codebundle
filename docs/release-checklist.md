@@ -38,6 +38,9 @@ npm run package:dir
 ## Create A Release
 
 1. Update the version in `apps/desktop/package.json`.
+
+Auto-update uses the packaged app version, not only the Git tag. For every release, update `apps/desktop/package.json` first, then create the matching Git tag, for example `v0.1.2` for package version `0.1.2`.
+
 2. Regenerate icons only if the committed branding source changes:
 
 ```bash
@@ -56,6 +59,14 @@ git push origin v0.1.0
 ```
 
 The GitHub Actions release workflow runs on `v*` tags, builds on macOS, Windows, and Linux, builds the platform Python sidecar on each OS, packages the desktop app, and uploads installers/packages to the GitHub Release using the Actions `GITHUB_TOKEN`.
+
+The release workflow also uploads electron-updater metadata files:
+
+- macOS: `latest-mac.yml`
+- Windows: `latest.yml`
+- Linux: `latest-linux.yml`
+
+These files must stay attached to the GitHub Release with the installer/package artifacts so installed apps can discover updates.
 
 ## User Download Guidance
 
