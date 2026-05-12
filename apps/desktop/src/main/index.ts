@@ -1,4 +1,4 @@
-import { app, BrowserWindow } from "electron";
+import { app, BrowserWindow, screen } from "electron";
 import { join } from "node:path";
 import { setupAutoUpdater } from "./appUpdater";
 import { cleanupOldTempConfigs } from "./configWriter";
@@ -7,9 +7,17 @@ import { registerIpcHandlers } from "./ipcHandlers";
 let mainWindow: BrowserWindow | null = null;
 
 function createWindow(): void {
+  const { workArea } = screen.getPrimaryDisplay();
+  const width = Math.min(workArea.width, Math.max(1180, Math.floor(workArea.width * 0.94)));
+  const height = Math.min(workArea.height, Math.max(820, Math.floor(workArea.height * 0.92)));
+  const x = workArea.x + Math.floor((workArea.width - width) / 2);
+  const y = workArea.y + Math.floor((workArea.height - height) / 2);
+
   mainWindow = new BrowserWindow({
-    width: 1100,
-    height: 760,
+    x,
+    y,
+    width,
+    height,
     minWidth: 860,
     minHeight: 620,
     title: "CodeBundle",
