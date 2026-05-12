@@ -1,7 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { ExcludeRulesEditor } from "./components/ExcludeRulesEditor";
 import { ExportControls } from "./components/ExportControls";
-import { ExportSummary } from "./components/ExportSummary";
 import { ExportToast } from "./components/ExportToast";
 import { FileTree } from "./components/FileTree";
 import { InlineInfo } from "./components/InlineInfo";
@@ -29,6 +28,7 @@ import type {
 
 const DEFAULT_MAX_FILE_SIZE_KB = 500;
 const TOAST_DISMISS_MS = 9_000;
+const settingsIcon = new URL("../../../../resources/icons/settings.svg", import.meta.url).href;
 
 interface ExportToastState {
   kind: "success" | "error" | "info";
@@ -374,15 +374,15 @@ export default function App(): JSX.Element {
       setToast(
         result.success
           ? {
-              kind: "success",
-              title: "Export completed",
-              outputFile: result.outputFile
-            }
+            kind: "success",
+            title: "Export completed",
+            outputFile: result.outputFile
+          }
           : {
-              kind: result.error.code === "EXPORT_CANCELLED" ? "info" : "error",
-              title: result.error.code === "EXPORT_CANCELLED" ? "Export cancelled" : "Export failed",
-              message: result.error.details ?? result.error.message
-            }
+            kind: result.error.code === "EXPORT_CANCELLED" ? "info" : "error",
+            title: result.error.code === "EXPORT_CANCELLED" ? "Export cancelled" : "Export failed",
+            message: result.error.details ?? result.error.message
+          }
       );
     } catch (caughtError) {
       const failureResult: RunExportResult = {
@@ -446,229 +446,249 @@ export default function App(): JSX.Element {
 
   return (
     <main style={styles.shell}>
-      {toast ? (
-        <ExportToast
-          kind={toast.kind}
-          title={toast.title}
-          message={toast.message}
-          outputFile={toast.outputFile}
-          onRevealOutput={(path) => void revealOutput(path)}
-          onCopyOutput={(path) => void copyOutputPath(path)}
-          onDismiss={() => setToast(null)}
-        />
-      ) : null}
-      <header style={styles.header}>
-        <div>
-          <h1 style={styles.title}>CodeBundle</h1>
-          <p style={styles.tagline}>Bundle project files into one export.</p>
-        </div>
-        <div style={styles.headerActions}>
-          <LocalFirstInfo
-            defaultExcludes={defaultExcludes}
-            isOpen={isInfoOpen}
-            onToggle={() => setIsInfoOpen((current) => !current)}
-            onClose={() => setIsInfoOpen(false)}
+      <div style={styles.shellInner}>
+        {toast ? (
+          <ExportToast
+            kind={toast.kind}
+            title={toast.title}
+            message={toast.message}
+            outputFile={toast.outputFile}
+            onRevealOutput={(path) => void revealOutput(path)}
+            onCopyOutput={(path) => void copyOutputPath(path)}
+            onDismiss={() => setToast(null)}
           />
-          {appInfo ? <div style={styles.version}>v{appInfo.version}</div> : null}
-        </div>
-      </header>
+        ) : null}
+        <header style={styles.header}>
+          <div>
+            <h1 style={styles.title}>CodeBundle</h1>
+            <p style={styles.tagline}>Bundle selected project files into one AI-ready export.</p>
+          </div>
+          <div style={styles.headerActions}>
+            <div style={styles.localBadge}>
+              <span style={styles.localDot} />
+              Local-first
+            </div>
+            {appInfo ? <div style={styles.version}>v{appInfo.version}</div> : null}
+            <LocalFirstInfo
+              defaultExcludes={defaultExcludes}
+              isOpen={isInfoOpen}
+              onToggle={() => setIsInfoOpen((current) => !current)}
+              onClose={() => setIsInfoOpen(false)}
+            />
+          </div>
+        </header>
 
-      {warnings.length > 0 ? <div style={styles.warning}>{warnings.join(" ")}</div> : null}
-      {error ? <div style={styles.error}>{error}</div> : null}
+        {warnings.length > 0 ? <div style={styles.warning}>{warnings.join(" ")}</div> : null}
+        {error ? <div style={styles.error}>{error}</div> : null}
 
-      <div style={styles.grid}>
-        <section style={styles.panel}>
-          <ProjectPicker
-            projectFolder={projectFolder}
-            isScanning={isScanning}
-            onProjectFolderChange={updateProjectFolder}
-            onChooseProjectFolder={chooseProjectFolder}
-            onScanProject={() => void scanSelectedProject()}
-          />
-          <div style={styles.divider} />
-          <ExportControls
-            outputFile={outputFile}
-            canPrepareExport={canPrepareExport}
-            canRunExport={canRunExport}
-            isPreparingExport={isPreparingExport}
-            isExporting={isExporting}
-            exportStatus={exportStatus}
-            onOutputFileChange={updateOutputFile}
-            onChooseOutputFile={chooseOutputFile}
-            onPrepareExport={() => void prepareExportConfig()}
-            onRunExport={() => void runExport()}
-            onCancelExport={() => void cancelExport()}
-          />
-          <div style={styles.divider} />
-          <section style={styles.options}>
-            <label style={styles.fieldLabel}>
-              Max file size KB
-              <input
-                type="number"
-                min={1}
-                value={maxFileSizeKb}
-                onChange={(event) => {
+        <div style={styles.grid}>
+          <div style={styles.leftColumn}>
+            <section style={styles.card}>
+              <ProjectPicker
+                projectFolder={projectFolder}
+                isScanning={isScanning}
+                onProjectFolderChange={updateProjectFolder}
+                onChooseProjectFolder={chooseProjectFolder}
+                onScanProject={() => void scanSelectedProject()}
+              />
+            </section>
+
+            <section style={styles.card}>
+              <ExportControls
+                outputFile={outputFile}
+                canPrepareExport={canPrepareExport}
+                canRunExport={canRunExport}
+                isPreparingExport={isPreparingExport}
+                isExporting={isExporting}
+                exportStatus={exportStatus}
+                onOutputFileChange={updateOutputFile}
+                onChooseOutputFile={chooseOutputFile}
+                onPrepareExport={() => void prepareExportConfig()}
+                onRunExport={() => void runExport()}
+                onCancelExport={() => void cancelExport()}
+              />
+            </section>
+
+            <section style={styles.card}>
+              <div style={styles.cardHeadingRow}>
+                <span style={{ ...styles.iconBadge, ...styles.purpleBadge }}>
+                  <img src={settingsIcon} alt="" aria-hidden="true" style={styles.badgeIcon} />
+                </span>
+                <h2 style={styles.cardHeading}>Export Options</h2>
+              </div>
+              <section style={styles.options}>
+                <label style={styles.fieldLabel}>
+                  Max file size KB
+                  <input
+                    type="number"
+                    min={1}
+                    value={maxFileSizeKb}
+                    onChange={(event) => {
+                      setPrepareResult(null);
+                      setExportResult(null);
+                      setRevealError(null);
+                      setCopyStatus(null);
+                      setToast(null);
+                      setConfigPreview(null);
+                      setMaxFileSizeKb(Number(event.target.value) || DEFAULT_MAX_FILE_SIZE_KB);
+                    }}
+                    style={styles.numberInput}
+                  />
+                </label>
+                <div style={styles.checkRow}>
+                  <label style={styles.checkLabel}>
+                    <input
+                      type="checkbox"
+                      checked={respectGitIgnore}
+                      onChange={(event) => {
+                        setPrepareResult(null);
+                        setExportResult(null);
+                        setRevealError(null);
+                        setCopyStatus(null);
+                        setToast(null);
+                        setConfigPreview(null);
+                        setRespectGitIgnore(event.target.checked);
+                      }}
+                    />
+                    Respect .gitignore
+                  </label>
+                  <InlineInfo label="Explain Respect .gitignore">
+                    <strong style={styles.infoTitle}>Respect .gitignore</strong>
+                    <span>
+                      When on, CodeBundle reads the project's root .gitignore and skips matching files/folders during scan
+                      and export.
+                    </span>
+                    <span>
+                      When off, CodeBundle ignores .gitignore rules and only applies CodeBundle's default/custom exclude
+                      rules.
+                    </span>
+                    <span>
+                      Note: current .gitignore support is lightweight root .gitignore matching, not full Git-compatible
+                      nested ignore behavior.
+                    </span>
+                  </InlineInfo>
+                </div>
+                <div style={styles.checkRow}>
+                  <label style={styles.checkLabel}>
+                    <input
+                      type="checkbox"
+                      checked={followSymlinks}
+                      onChange={(event) => {
+                        setPrepareResult(null);
+                        setExportResult(null);
+                        setRevealError(null);
+                        setCopyStatus(null);
+                        setToast(null);
+                        setConfigPreview(null);
+                        setFollowSymlinks(event.target.checked);
+                      }}
+                    />
+                    Follow symlinks
+                  </label>
+                  <InlineInfo label="Explain Follow symlinks">
+                    <strong style={styles.infoTitle}>Follow symlinks</strong>
+                    <span>When off, CodeBundle skips symbolic links. This avoids accidentally scanning linked files or folders.</span>
+                    <span>
+                      When on, CodeBundle follows symbolic links during scan/export. Linked targets are still checked by path
+                      safety rules.
+                    </span>
+                    <span>Recommended: keep this off unless your project intentionally uses linked folders.</span>
+                  </InlineInfo>
+                </div>
+              </section>
+            </section>
+
+            <section style={styles.card}>
+              <ExcludeRulesEditor
+                value={excludeText}
+                onChange={(value) => {
                   setPrepareResult(null);
                   setExportResult(null);
                   setRevealError(null);
                   setCopyStatus(null);
                   setToast(null);
                   setConfigPreview(null);
-                  setMaxFileSizeKb(Number(event.target.value) || DEFAULT_MAX_FILE_SIZE_KB);
+                  setExcludeText(value);
                 }}
-                style={styles.numberInput}
               />
-            </label>
-            <div style={styles.checkRow}>
-              <label style={styles.checkLabel}>
-                <input
-                  type="checkbox"
-                  checked={respectGitIgnore}
-                  onChange={(event) => {
-                    setPrepareResult(null);
-                    setExportResult(null);
-                    setRevealError(null);
-                    setCopyStatus(null);
-                    setToast(null);
-                    setConfigPreview(null);
-                    setRespectGitIgnore(event.target.checked);
-                  }}
-                />
-                Respect .gitignore
-              </label>
-              <InlineInfo label="Explain Respect .gitignore">
-                <strong style={styles.infoTitle}>Respect .gitignore</strong>
-                <span>
-                  When on, CodeBundle reads the project's root .gitignore and skips matching files/folders during scan
-                  and export.
-                </span>
-                <span>
-                  When off, CodeBundle ignores .gitignore rules and only applies CodeBundle's default/custom exclude
-                  rules.
-                </span>
-                <span>
-                  Note: current .gitignore support is lightweight root .gitignore matching, not full Git-compatible
-                  nested ignore behavior.
-                </span>
-              </InlineInfo>
-            </div>
-            <div style={styles.checkRow}>
-              <label style={styles.checkLabel}>
-                <input
-                  type="checkbox"
-                  checked={followSymlinks}
-                  onChange={(event) => {
-                    setPrepareResult(null);
-                    setExportResult(null);
-                    setRevealError(null);
-                    setCopyStatus(null);
-                    setToast(null);
-                    setConfigPreview(null);
-                    setFollowSymlinks(event.target.checked);
-                  }}
-                />
-                Follow symlinks
-              </label>
-              <InlineInfo label="Explain Follow symlinks">
-                <strong style={styles.infoTitle}>Follow symlinks</strong>
-                <span>When off, CodeBundle skips symbolic links. This avoids accidentally scanning linked files or folders.</span>
-                <span>
-                  When on, CodeBundle follows symbolic links during scan/export. Linked targets are still checked by path
-                  safety rules.
-                </span>
-                <span>Recommended: keep this off unless your project intentionally uses linked folders.</span>
-              </InlineInfo>
-            </div>
-          </section>
-          <div style={styles.divider} />
-          <ExcludeRulesEditor
-            value={excludeText}
-            onChange={(value) => {
-              setPrepareResult(null);
-              setExportResult(null);
-              setRevealError(null);
-              setCopyStatus(null);
-              setToast(null);
-              setConfigPreview(null);
-              setExcludeText(value);
-            }}
-          />
-          <div style={styles.divider} />
-          <ExportSummary
-            scanSummary={scanResult?.summary ?? null}
-            selectedFilesCount={selectionSummary.selectedFilesCount}
-            selectedFoldersCount={selectionSummary.selectedFoldersCount}
-            estimatedExportFileCount={selectionSummary.estimatedExportFileCount}
-            configPreview={configPreview}
-            prepareResult={prepareResult}
-            exportResult={exportResult}
-            revealError={revealError}
-            copyStatus={copyStatus}
-            onRevealOutput={(path) => void revealOutput(path)}
-            onCopyOutput={(path) => void copyOutputPath(path)}
-          />
-        </section>
-
-        <section style={styles.panel}>
-          <div>
-            <h2 style={styles.panelHeading}>Files</h2>
-            <p style={styles.panelCopy}>Scan a project, then choose files and folders for a future export.</p>
+            </section>
           </div>
 
-          <div style={styles.filters}>
-            <input
-              type="search"
-              value={search}
-              onChange={(event) => setSearch(event.target.value)}
-              placeholder="Search files"
-              style={styles.searchInput}
-            />
-            <select value={extensionFilter} onChange={(event) => setExtensionFilter(event.target.value)} style={styles.select}>
-              <option value="">All extensions</option>
-              {extensions.map((extension) => (
-                <option key={extension} value={extension}>
-                  {extension}
-                </option>
-              ))}
-            </select>
-            <label style={styles.toggleLabel}>
+          <section style={styles.filesPanel}>
+            <div style={styles.filesHeader}>
+              <div style={styles.filesTitleBlock}>
+                <h2 style={styles.filesHeading}>Files</h2>
+                <p style={styles.panelCopy}>Scan a project, then choose files and folders for a future export.</p>
+              </div>
+              <div style={styles.filesStats}>
+                <div style={styles.filesEstimate}>
+                  <span style={styles.filesEstimateLabel}>Estimated export files</span>
+                  <span style={styles.filesEstimateValue}>{selectionSummary.estimatedExportFileCount}</span>
+                </div>
+                {scanResult ? (
+                  <p style={styles.filesScanText}>
+                    Scanned {scanResult.summary.totalFiles} files and {scanResult.summary.totalFolders} folders. Skipped{" "}
+                    {scanResult.summary.skippedFiles} files.
+                  </p>
+                ) : null}
+              </div>
+            </div>
+
+            <div style={styles.filters}>
               <input
-                type="checkbox"
-                checked={showSelectedOnly}
-                onChange={(event) => setShowSelectedOnly(event.target.checked)}
+                type="search"
+                value={search}
+                onChange={(event) => setSearch(event.target.value)}
+                placeholder="Search files or folders..."
+                style={styles.searchInput}
               />
-              Selected only
-            </label>
-          </div>
+              <select value={extensionFilter} onChange={(event) => setExtensionFilter(event.target.value)} style={styles.select}>
+                <option value="">All extensions</option>
+                {extensions.map((extension) => (
+                  <option key={extension} value={extension}>
+                    {extension}
+                  </option>
+                ))}
+              </select>
+              <label style={styles.toggleLabel}>
+                <input
+                  type="checkbox"
+                  checked={showSelectedOnly}
+                  onChange={(event) => setShowSelectedOnly(event.target.checked)}
+                />
+                Selected only
+              </label>
+            </div>
 
-          <div style={styles.toolbar}>
-            <button type="button" style={styles.smallButton} onClick={selectVisibleFiles} disabled={!scanResult}>
-              Select all visible
-            </button>
-            <button type="button" style={styles.smallButton} onClick={deselectAll} disabled={!scanResult}>
-              Deselect all
-            </button>
-            <button type="button" style={styles.smallButton} onClick={expandAllVisible} disabled={!scanResult}>
-              Expand all
-            </button>
-            <button type="button" style={styles.smallButton} onClick={collapseAll} disabled={!scanResult}>
-              Collapse all
-            </button>
-          </div>
+            <div style={styles.toolbar}>
+              <button type="button" style={styles.smallButton} onClick={selectVisibleFiles} disabled={!scanResult}>
+                Select all visible
+              </button>
+              <button type="button" style={styles.smallButton} onClick={deselectAll} disabled={!scanResult}>
+                Deselect all
+              </button>
+              <button type="button" style={styles.smallButton} onClick={expandAllVisible} disabled={!scanResult}>
+                Expand all
+              </button>
+              <button type="button" style={styles.smallButton} onClick={collapseAll} disabled={!scanResult}>
+                Collapse all
+              </button>
+            </div>
 
-          {scanResult ? (
-            <FileTree
-              nodes={filteredTree}
-              treeIndex={treeIndex}
-              selection={selection}
-              expandedFolders={expandedFolders}
-              onToggleExpanded={toggleExpanded}
-              onToggleSelection={toggleSelection}
-            />
-          ) : (
-            <div style={styles.placeholder}>Choose a project folder and scan it to load local file metadata.</div>
-          )}
-        </section>
+            {scanResult ? (
+              <FileTree
+                nodes={filteredTree}
+                treeIndex={treeIndex}
+                selection={selection}
+                expandedFolders={expandedFolders}
+                onToggleExpanded={toggleExpanded}
+                onToggleSelection={toggleSelection}
+              />
+            ) : (
+              <div style={styles.placeholder}>Choose a project folder and scan it to load local file metadata.</div>
+            )}
+          </section>
+        </div>
       </div>
     </main>
   );
@@ -690,97 +710,213 @@ const styles = {
   shell: {
     minHeight: "100vh",
     boxSizing: "border-box",
-    padding: 28,
-    background: "#f7f8fb",
-    color: "#162032",
+    padding: "34px 38px 38px",
+    background: "#f5f7fb",
+    color: "#101828",
     fontFamily:
       "Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, Segoe UI, sans-serif"
+  },
+  shellInner: {
+    width: "100%"
   },
   header: {
     display: "flex",
     alignItems: "flex-start",
     justifyContent: "space-between",
     gap: 24,
-    marginBottom: 22
+    marginBottom: 24
   },
   title: {
     margin: 0,
-    color: "#121a2a",
-    fontSize: 34,
-    fontWeight: 800,
+    color: "#101828",
+    fontSize: 44,
+    fontWeight: 900,
     letterSpacing: 0
   },
   tagline: {
-    margin: "7px 0 0",
-    color: "#596477",
+    margin: "8px 0 0",
+    color: "#667085",
     fontSize: 16,
     lineHeight: 1.45
   },
   version: {
-    padding: "5px 9px",
-    border: "1px solid #d7dce5",
-    borderRadius: 6,
-    background: "#ffffff",
-    color: "#596477",
-    fontSize: 12,
-    fontWeight: 700
-  },
-  headerActions: {
-    display: "flex",
+    display: "inline-flex",
     alignItems: "center",
-    gap: 10
-  },
-  grid: {
-    display: "grid",
-    gridTemplateColumns: "minmax(360px, 0.74fr) minmax(420px, 1.26fr)",
-    gap: 18,
-    marginTop: 18
-  },
-  panel: {
-    display: "grid",
-    gap: 18,
-    alignContent: "start",
-    padding: 20,
-    border: "1px solid #dfe4ec",
-    borderRadius: 8,
+    height: 32,
+    padding: "0 12px",
+    border: "1px solid #d9e0ea",
+    borderRadius: 10,
     background: "#ffffff",
-    boxShadow: "0 1px 2px rgba(16, 24, 40, 0.06)"
-  },
-  divider: {
-    height: 1,
-    background: "#e8ecf2"
-  },
-  panelHeading: {
-    margin: 0,
-    color: "#162032",
-    fontSize: 18,
-    fontWeight: 700,
-    letterSpacing: 0
-  },
-  panelCopy: {
-    margin: "5px 0 0",
-    color: "#596477",
-    fontSize: 14,
-    lineHeight: 1.45
-  },
-  options: {
-    display: "grid",
-    gap: 10
-  },
-  fieldLabel: {
-    display: "grid",
-    gap: 6,
     color: "#344054",
     fontSize: 13,
     fontWeight: 700
   },
+  localBadge: {
+    display: "inline-flex",
+    alignItems: "center",
+    gap: 8,
+    height: 32,
+    padding: "0 12px",
+    border: "1px solid #d9e0ea",
+    borderRadius: 10,
+    background: "#ffffff",
+    color: "#344054",
+    fontSize: 13,
+    fontWeight: 700
+  },
+  localDot: {
+    width: 9,
+    height: 9,
+    borderRadius: 999,
+    background: "#57b98a",
+    boxShadow: "0 0 0 3px #e8f8ef"
+  },
+  headerActions: {
+    display: "flex",
+    alignItems: "center",
+    gap: 12,
+    paddingTop: 10
+  },
+  grid: {
+    display: "grid",
+    gridTemplateColumns: "420px minmax(0, 1fr)",
+    alignItems: "stretch",
+    gap: 20,
+    marginTop: 20
+  },
+  leftColumn: {
+    display: "grid",
+    gap: 12
+  },
+  card: {
+    boxSizing: "border-box",
+    padding: 18,
+    border: "1px solid #d9e0ea",
+    borderRadius: 18,
+    background: "#ffffff",
+    boxShadow: "0 10px 24px rgba(16, 24, 40, 0.05)"
+  },
+  cardHeadingRow: {
+    display: "flex",
+    alignItems: "center",
+    gap: 12,
+    marginBottom: 14
+  },
+  iconBadge: {
+    display: "grid",
+    placeItems: "center",
+    width: 34,
+    height: 34,
+    borderRadius: 999,
+    fontSize: 17,
+    fontWeight: 800
+  },
+  badgeIcon: {
+    width: 19,
+    height: 19,
+    display: "block"
+  },
+  purpleBadge: {
+    background: "#eef0ff",
+    color: "#4653c8"
+  },
+  cardHeading: {
+    margin: 0,
+    color: "#101828",
+    fontSize: 18,
+    fontWeight: 850,
+    letterSpacing: 0
+  },
+  filesPanel: {
+    display: "grid",
+    alignContent: "start",
+    alignSelf: "stretch",
+    gridTemplateRows: "auto auto auto minmax(0, 1fr)",
+    gap: 18,
+    boxSizing: "border-box",
+    minWidth: 0,
+    padding: 22,
+    border: "1px solid #d9e0ea",
+    borderRadius: 20,
+    background: "#ffffff",
+    boxShadow: "0 12px 32px rgba(16, 24, 40, 0.06)"
+  },
+  filesHeader: {
+    display: "flex",
+    flexWrap: "wrap",
+    alignItems: "flex-start",
+    justifyContent: "space-between",
+    gap: 20
+  },
+  filesTitleBlock: {
+    flex: "1 1 360px",
+    minWidth: 0
+  },
+  filesHeading: {
+    margin: 0,
+    color: "#101828",
+    fontSize: 24,
+    fontWeight: 900,
+    letterSpacing: 0
+  },
+  panelCopy: {
+    margin: "8px 0 0",
+    color: "#667085",
+    fontSize: 15,
+    lineHeight: 1.45
+  },
+  filesStats: {
+    display: "grid",
+    justifyItems: "end",
+    gap: 8,
+    flex: "0 1 390px",
+    minWidth: 280
+  },
+  filesEstimate: {
+    display: "flex",
+    alignItems: "baseline",
+    justifyContent: "flex-end",
+    gap: 12
+  },
+  filesEstimateLabel: {
+    color: "#101828",
+    fontSize: 13,
+    fontWeight: 800
+  },
+  filesEstimateValue: {
+    color: "#1d7f5f",
+    fontSize: 38,
+    fontWeight: 900,
+    lineHeight: 1
+  },
+  filesScanText: {
+    margin: 0,
+    color: "#667085",
+    fontSize: 13,
+    lineHeight: 1.45,
+    textAlign: "right"
+  },
+  options: {
+    display: "grid",
+    gap: 12
+  },
+  fieldLabel: {
+    display: "grid",
+    gap: 8,
+    color: "#344054",
+    fontSize: 13,
+    fontWeight: 750
+  },
   numberInput: {
-    height: 38,
-    padding: "0 10px",
-    border: "1px solid #d7dce5",
-    borderRadius: 6,
-    color: "#273244",
-    fontSize: 14
+    height: 42,
+    boxSizing: "border-box",
+    padding: "0 12px",
+    border: "1px solid #d9e0ea",
+    borderRadius: 12,
+    background: "#fbfcff",
+    color: "#101828",
+    fontSize: 14,
+    outline: "none"
   },
   checkLabel: {
     display: "flex",
@@ -788,91 +924,104 @@ const styles = {
     gap: 8,
     color: "#344054",
     fontSize: 13,
-    fontWeight: 650
+    fontWeight: 700
   },
   checkRow: {
     display: "flex",
     alignItems: "center",
-    gap: 6
+    gap: 8,
+    minHeight: 24
   },
   infoTitle: {
-    color: "#3b2e18",
+    color: "#101828",
     fontSize: 12,
     fontWeight: 800
   },
   filters: {
-    display: "grid",
-    gridTemplateColumns: "minmax(0, 1fr) 150px auto",
+    display: "flex",
+    flexWrap: "wrap",
     alignItems: "center",
-    gap: 10
+    gap: 12,
+    marginTop: 6
   },
   searchInput: {
-    height: 38,
-    padding: "0 11px",
-    border: "1px solid #d7dce5",
-    borderRadius: 6,
-    color: "#273244",
-    fontSize: 14
+    flex: "1 1 320px",
+    height: 44,
+    boxSizing: "border-box",
+    padding: "0 14px",
+    border: "1px solid #d9e0ea",
+    borderRadius: 12,
+    background: "#ffffff",
+    color: "#101828",
+    fontSize: 14,
+    outline: "none"
   },
   select: {
-    height: 38,
-    padding: "0 9px",
-    border: "1px solid #d7dce5",
-    borderRadius: 6,
+    flex: "0 0 190px",
+    height: 44,
+    boxSizing: "border-box",
+    padding: "0 12px",
+    border: "1px solid #d9e0ea",
+    borderRadius: 12,
     background: "#ffffff",
-    color: "#273244",
-    fontSize: 14
+    color: "#101828",
+    fontSize: 14,
+    outline: "none"
   },
   toggleLabel: {
     display: "flex",
+    flex: "0 0 auto",
     alignItems: "center",
-    gap: 7,
+    gap: 8,
+    height: 44,
     color: "#344054",
     fontSize: 13,
-    fontWeight: 650,
+    fontWeight: 750,
     whiteSpace: "nowrap"
   },
   toolbar: {
     display: "flex",
     flexWrap: "wrap",
-    gap: 8
+    gap: 10
   },
   smallButton: {
-    height: 34,
-    padding: "0 11px",
-    border: "1px solid #a7b0c0",
-    borderRadius: 6,
+    height: 40,
+    padding: "0 14px",
+    border: "1px solid #c8d1df",
+    borderRadius: 10,
     background: "#ffffff",
-    color: "#25334a",
+    color: "#243047",
     fontSize: 13,
-    fontWeight: 700,
+    fontWeight: 750,
     cursor: "pointer"
   },
   placeholder: {
     display: "grid",
-    minHeight: 260,
+    minHeight: 360,
+    height: "100%",
+    boxSizing: "border-box",
     placeItems: "center",
-    border: "1px dashed #b7bfce",
-    borderRadius: 6,
-    background: "#fbfcfe",
-    color: "#6a7485",
+    border: "1px dashed #cbd5e1",
+    borderRadius: 14,
+    background: "#fbfcff",
+    color: "#667085",
     fontSize: 14,
     textAlign: "center"
   },
   warning: {
-    marginTop: 14,
-    padding: 12,
+    margin: "0 0 14px",
+    padding: 14,
     border: "1px solid #d8cdb8",
-    borderRadius: 6,
+    borderRadius: 14,
     background: "#fffaf0",
     color: "#554322",
     fontSize: 14
   },
   error: {
-    marginTop: 14,
-    padding: 12,
+    margin: "0 0 14px",
+    padding: 14,
     border: "1px solid #efb5b5",
-    borderRadius: 6,
+    borderRadius: 14,
     background: "#fff4f4",
     color: "#8a2b2b",
     fontSize: 14
