@@ -20,7 +20,7 @@ export function ExportToast({
   return (
     <div style={{ ...styles.toast, ...(kind === "success" ? styles.success : kind === "error" ? styles.error : styles.info) }}>
       <button type="button" aria-label="Dismiss notification" onClick={onDismiss} style={styles.dismissButton}>
-        x
+        ×
       </button>
       <strong style={styles.title}>{title}</strong>
       {message ? <span style={styles.message}>{message}</span> : null}
@@ -53,37 +53,37 @@ const styles = {
     gap: 7,
     width: 360,
     maxWidth: "calc(100vw - 48px)",
-    padding: "14px 38px 14px 14px",
-    border: "1px solid #cfd6e2",
-    borderRadius: 8,
+    padding: "16px 42px 16px 16px",
+    border: "1px solid #d9e0ea",
+    borderRadius: 16,
     background: "#ffffff",
-    boxShadow: "0 16px 36px rgba(16, 24, 40, 0.18)",
-    color: "#162032"
+    boxShadow: "0 18px 42px rgba(16, 24, 40, 0.14)",
+    color: "#101828"
   },
   success: {
-    borderColor: "#9bd5bd",
-    background: "#f0fbf5"
+    borderColor: "#a8d7c1",
+    background: "#e8f8ef"
   },
   error: {
     borderColor: "#efb5b5",
     background: "#fff4f4"
   },
   info: {
-    borderColor: "#b9c7dd",
-    background: "#f4f7fb"
+    borderColor: "#b9d7f2",
+    background: "#eaf5ff"
   },
   dismissButton: {
     position: "absolute",
-    top: 9,
-    right: 9,
-    width: 22,
-    height: 22,
+    top: 10,
+    right: 10,
+    width: 24,
+    height: 24,
     border: "1px solid transparent",
     borderRadius: 999,
     background: "transparent",
-    color: "#5f6b7c",
+    color: "#667085",
     cursor: "pointer",
-    fontSize: 13,
+    fontSize: 18,
     fontWeight: 800
   },
   title: {
@@ -91,13 +91,13 @@ const styles = {
     lineHeight: 1.35
   },
   message: {
-    color: "#465266",
+    color: "#475467",
     fontSize: 13,
     lineHeight: 1.4
   },
   path: {
     overflow: "hidden",
-    color: "#25334a",
+    color: "#243047",
     fontFamily: "ui-monospace, SFMono-Regular, Menlo, Consolas, monospace",
     fontSize: 11,
     lineHeight: 1.4,
@@ -113,10 +113,10 @@ const styles = {
   actionButton: {
     height: 30,
     padding: "0 10px",
-    border: "1px solid #1d6f52",
-    borderRadius: 6,
+    border: "1px solid #1d7f5f",
+    borderRadius: 10,
     background: "#ffffff",
-    color: "#1d6f52",
+    color: "#1d7f5f",
     fontSize: 12,
     fontWeight: 700,
     cursor: "pointer"
