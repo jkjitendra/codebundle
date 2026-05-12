@@ -12,6 +12,8 @@ interface ExportControlsProps {
   onCancelExport: () => void;
 }
 
+const fileIcon = new URL("../../../../../resources/icons/file.svg", import.meta.url).href;
+
 export function ExportControls({
   outputFile,
   canPrepareExport,
@@ -27,21 +29,26 @@ export function ExportControls({
 }: ExportControlsProps): JSX.Element {
   return (
     <section style={styles.section}>
-      <div>
+      <div style={styles.headingRow}>
+        <span style={styles.iconBadge}>
+          <img src={fileIcon} alt="" aria-hidden="true" style={styles.badgeIcon} />
+        </span>
         <h2 style={styles.heading}>Output File</h2>
-        <p style={styles.copy}>Choose where the Markdown or text export will be written.</p>
       </div>
-      <div style={styles.row}>
-        <input
-          type="text"
-          value={outputFile ?? ""}
-          onChange={(event) => onOutputFileChange(event.target.value)}
-          placeholder="Paste an absolute .md or .txt output path"
-          style={styles.pathInput}
-        />
-        <button type="button" style={styles.secondaryButton} onClick={onChooseOutputFile}>
-          Choose Output
-        </button>
+      <div style={styles.fieldLabel}>
+        <span>Output File</span>
+        <div style={styles.row}>
+          <input
+            type="text"
+            value={outputFile ?? ""}
+            onChange={(event) => onOutputFileChange(event.target.value)}
+            placeholder="Paste an absolute .md or .txt output path"
+            style={styles.pathInput}
+          />
+          <button type="button" style={styles.secondaryButton} onClick={onChooseOutputFile}>
+            Choose Output
+          </button>
+        </div>
       </div>
       <div style={styles.actions}>
         <button
@@ -80,68 +87,92 @@ export function ExportControls({
 const styles = {
   section: {
     display: "grid",
-    gap: 14
+    gap: 13
+  },
+  headingRow: {
+    display: "flex",
+    alignItems: "center",
+    gap: 12
+  },
+  iconBadge: {
+    display: "grid",
+    placeItems: "center",
+    width: 34,
+    height: 34,
+    borderRadius: 999,
+    background: "#eaf5ff",
+    color: "#2563eb",
+    fontSize: 21,
+    fontWeight: 900,
+    lineHeight: 1
+  },
+  badgeIcon: {
+    width: 20,
+    height: 20,
+    display: "block"
   },
   heading: {
     margin: 0,
-    color: "#162032",
+    color: "#101828",
     fontSize: 18,
-    fontWeight: 700,
+    fontWeight: 850,
     letterSpacing: 0
   },
-  copy: {
-    margin: "5px 0 0",
-    color: "#596477",
-    fontSize: 14,
-    lineHeight: 1.45
+  fieldLabel: {
+    display: "grid",
+    gap: 8,
+    color: "#344054",
+    fontSize: 13,
+    fontWeight: 750
   },
   row: {
     display: "grid",
     gridTemplateColumns: "minmax(0, 1fr) auto",
     alignItems: "center",
-    gap: 10
+    gap: 10,
+    minWidth: 0
   },
   pathInput: {
     height: 42,
+    boxSizing: "border-box",
     minWidth: 0,
     overflow: "hidden",
     padding: "0 12px",
-    border: "1px solid #d7dce5",
-    borderRadius: 6,
-    background: "#ffffff",
-    color: "#273244",
+    border: "1px solid #d9e0ea",
+    borderRadius: 12,
+    background: "#fbfcff",
+    color: "#344054",
     fontFamily: "ui-monospace, SFMono-Regular, Menlo, Consolas, monospace",
     fontSize: 12,
+    outline: "none",
     textOverflow: "ellipsis",
-    whiteSpace: "nowrap",
-    boxSizing: "border-box"
+    whiteSpace: "nowrap"
   },
   secondaryButton: {
     height: 42,
     padding: "0 14px",
-    border: "1px solid #a7b0c0",
-    borderRadius: 6,
+    border: "1px solid #c8d1df",
+    borderRadius: 12,
     background: "#ffffff",
-    color: "#25334a",
-    fontSize: 14,
-    fontWeight: 650,
+    color: "#243047",
+    fontSize: 13,
+    fontWeight: 750,
     cursor: "pointer"
   },
   actions: {
-    display: "flex",
-    justifyContent: "flex-end",
-    gap: 8,
-    flexWrap: "wrap"
-  },
-  advanced: {
     display: "grid",
     gap: 8
   },
+  advanced: {
+    display: "grid",
+    gap: 8,
+    marginTop: 2
+  },
   advancedSummary: {
     cursor: "pointer",
-    color: "#25334a",
+    color: "#344054",
     fontSize: 13,
-    fontWeight: 700
+    fontWeight: 750
   },
   advancedContent: {
     display: "grid",
@@ -152,45 +183,45 @@ const styles = {
   disabledButton: {
     height: 42,
     padding: "0 18px",
-    border: "1px solid #c4cad5",
-    borderRadius: 6,
-    background: "#e4e8ef",
+    border: "1px solid #d9e0ea",
+    borderRadius: 12,
+    background: "#edf1f7",
     color: "#707b8e",
     fontSize: 14,
-    fontWeight: 700,
+    fontWeight: 800,
     cursor: "not-allowed"
   },
   runButton: {
     height: 42,
     padding: "0 18px",
-    border: "1px solid #25334a",
-    borderRadius: 6,
-    background: "#25334a",
+    border: "1px solid #243b63",
+    borderRadius: 12,
+    background: "#243b63",
     color: "#ffffff",
     fontSize: 14,
-    fontWeight: 700,
+    fontWeight: 800,
     cursor: "pointer"
   },
   prepareButton: {
     height: 42,
     padding: "0 18px",
-    border: "1px solid #1d6f52",
-    borderRadius: 6,
-    background: "#1d6f52",
+    border: "1px solid #1d7f5f",
+    borderRadius: 12,
+    background: "#1d7f5f",
     color: "#ffffff",
     fontSize: 14,
-    fontWeight: 700,
+    fontWeight: 800,
     cursor: "pointer"
   },
   cancelButton: {
     height: 42,
     padding: "0 18px",
     border: "1px solid #b42318",
-    borderRadius: 6,
+    borderRadius: 12,
     background: "#ffffff",
     color: "#b42318",
     fontSize: 14,
-    fontWeight: 700,
+    fontWeight: 800,
     cursor: "pointer"
   },
   status: {

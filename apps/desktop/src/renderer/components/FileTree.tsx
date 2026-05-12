@@ -3,9 +3,9 @@ import type { FileTreeNode } from "../lib/types";
 import { getNodeSelectionState, type SelectionModel } from "../lib/selection";
 import type { TreeIndex } from "../lib/treeUtils";
 
-const ROW_HEIGHT = 32;
+const ROW_HEIGHT = 36;
 const OVERSCAN = 8;
-const TREE_HEIGHT = 520;
+const TREE_HEIGHT = 560;
 
 interface FileTreeProps {
   nodes: FileTreeNode[];
@@ -144,8 +144,8 @@ const styles = {
     minHeight: 260,
     height: TREE_HEIGHT,
     overflow: "auto",
-    border: "1px solid #dfe4ec",
-    borderRadius: 6,
+    border: "1px solid #e1e7ef",
+    borderRadius: 14,
     background: "#ffffff"
   },
   virtualSpace: {
@@ -154,24 +154,26 @@ const styles = {
   },
   row: {
     display: "grid",
-    gridTemplateColumns: "24px 22px minmax(0, 1fr) auto",
+    gridTemplateColumns: "24px 24px minmax(0, 1fr) auto",
     alignItems: "center",
-    gap: 6,
+    gap: 8,
     height: ROW_HEIGHT,
-    paddingRight: 10,
-    borderBottom: "1px solid #f0f3f7",
-    color: "#263247",
+    paddingRight: 14,
+    borderBottom: "1px solid #edf1f6",
+    background: "#ffffff",
+    color: "#344054",
     fontSize: 13
   },
   expandButton: {
     width: 22,
     height: 22,
     border: "1px solid transparent",
-    borderRadius: 4,
+    borderRadius: 6,
     background: "transparent",
-    color: "#5e6a7d",
+    color: "#667085",
     cursor: "pointer",
-    fontSize: 12
+    fontSize: 12,
+    fontWeight: 800
   },
   spacer: {
     width: 22,
@@ -180,32 +182,34 @@ const styles = {
   checkbox: {
     width: 15,
     height: 15,
-    margin: 0
+    margin: 0,
+    accentColor: "#1d7f5f"
   },
   folderName: {
     overflow: "hidden",
-    color: "#162032",
-    fontWeight: 700,
+    color: "#1f2937",
+    fontWeight: 800,
     textOverflow: "ellipsis",
     whiteSpace: "nowrap"
   },
   fileName: {
     overflow: "hidden",
+    color: "#344054",
     textOverflow: "ellipsis",
     whiteSpace: "nowrap"
   },
   meta: {
-    color: "#7b8494",
+    color: "#7a8699",
     fontSize: 12
   },
   empty: {
     display: "grid",
     minHeight: 220,
     placeItems: "center",
-    border: "1px dashed #b7bfce",
-    borderRadius: 6,
-    background: "#fbfcfe",
-    color: "#6a7485",
+    border: "1px dashed #cbd5e1",
+    borderRadius: 14,
+    background: "#fbfcff",
+    color: "#667085",
     fontSize: 14
   }
 } as const;
