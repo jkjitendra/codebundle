@@ -65,44 +65,46 @@ const styles = {
     position: "relative"
   },
   infoButton: {
-    width: 30,
-    height: 30,
+    width: 32,
+    height: 32,
     display: "grid",
     placeItems: "center",
-    border: "1px solid #c4cad5",
+    border: "1px solid #d9e0ea",
     borderRadius: 999,
     background: "#ffffff",
-    color: "#25334a",
-    cursor: "pointer"
+    color: "#243047",
+    cursor: "pointer",
+    padding: 0
   },
   popover: {
     position: "absolute",
-    top: 38,
+    top: 42,
     right: 0,
     zIndex: 20,
     display: "grid",
-    gap: 7,
+    gap: 8,
     width: 330,
-    padding: 14,
-    border: "1px solid #d8cdb8",
-    borderRadius: 8,
-    background: "#fffaf0",
-    boxShadow: "0 12px 28px rgba(16, 24, 40, 0.16)"
+    padding: 16,
+    border: "1px solid #d9e0ea",
+    borderRadius: 14,
+    background: "#ffffff",
+    boxShadow: "0 16px 40px rgba(16, 24, 40, 0.14)"
   },
   title: {
-    color: "#3b2e18",
+    color: "#101828",
     fontSize: 14,
+    fontWeight: 800,
     letterSpacing: 0
   },
   copy: {
     margin: 0,
-    color: "#554322",
+    color: "#475467",
     fontSize: 13,
     lineHeight: 1.45
   },
   rules: {
     margin: 0,
-    color: "#6e5a33",
+    color: "#667085",
     fontSize: 12,
     lineHeight: 1.45
   }
