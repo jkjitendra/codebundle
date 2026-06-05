@@ -27,5 +27,8 @@ export type {
   ScanNode,
   ScanProjectOptions,
   ScanProjectResult,
-  ScanSummary
+  ScanSummary,
+  SecretFinding,
+  SecretScanOptions,
+  SecretScanResult
 } from "../../shared/types";
