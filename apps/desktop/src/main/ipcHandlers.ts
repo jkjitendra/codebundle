@@ -5,6 +5,7 @@ import { prepareExportConfig } from "./configWriter";
 import { readPreferences, savePreferences } from "./preferences";
 import { runExporter } from "./runExporter";
 import { scanProject } from "./scanFiles";
+import { scanFilesForSecrets } from "./secretScanner";
 
 let currentExportController: AbortController | null = null;
 
@@ -129,4 +130,6 @@ export function registerIpcHandlers(): void {
   ipcMain.handle("codebundle:save-preferences", async (_event, preferences) =>
     savePreferences(app.getPath("userData"), preferences)
   );
+
+  ipcMain.handle("codebundle:scan-secrets", async (_event, options) => scanFilesForSecrets(options));
 }
