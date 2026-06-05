@@ -176,6 +176,28 @@ export interface SavePreferencesFailure {
 
 export type SavePreferencesResult = SavePreferencesSuccess | SavePreferencesFailure;
 
+export interface SecretFinding {
+  filePath: string;
+  ruleId: string;
+  ruleLabel: string;
+  severity: "high" | "medium";
+  line: number;
+  redactedMatch: string;
+}
+
+export interface SecretScanOptions {
+  projectRoot: string;
+  filePaths: string[];
+  maxFileSizeKb: number;
+}
+
+export interface SecretScanResult {
+  findings: SecretFinding[];
+  scannedFileCount: number;
+  errorCount: number;
+  hasMoreFindings: boolean;
+}
+
 export interface CodeBundleApi {
   chooseProjectFolder: () => Promise<string | null>;
   chooseOutputFile: () => Promise<string | null>;
@@ -188,6 +210,7 @@ export interface CodeBundleApi {
   savePreferences: (preferences: CodeBundlePreferences) => Promise<SavePreferencesResult>;
   getDefaultExcludes: () => Promise<string[]>;
   getAppInfo: () => Promise<AppInfo>;
+  scanForSecrets: (options: SecretScanOptions) => Promise<SecretScanResult>;
 }
 
 declare global {

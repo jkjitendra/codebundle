@@ -6,6 +6,7 @@ import { FileTree } from "./components/FileTree";
 import { InlineInfo } from "./components/InlineInfo";
 import { LocalFirstInfo } from "./components/LocalFirstInfo";
 import { ProjectPicker } from "./components/ProjectPicker";
+import { SecretScanWarning } from "./components/SecretScanWarning";
 import {
   buildConfigPreview,
   clearSelection,
@@ -23,7 +24,8 @@ import type {
   FileTreeNode,
   PrepareExportConfigResult,
   RunExportResult,
-  ScanProjectResult
+  ScanProjectResult,
+  SecretScanResult
 } from "./lib/types";
 
 const DEFAULT_MAX_FILE_SIZE_KB = 500;
@@ -55,6 +57,9 @@ export default function App(): JSX.Element {
   const [isScanning, setIsScanning] = useState(false);
   const [isPreparingExport, setIsPreparingExport] = useState(false);
   const [isExporting, setIsExporting] = useState(false);
+  const [isSecretScanning, setIsSecretScanning] = useState(false);
+  const [secretScanResult, setSecretScanResult] = useState<SecretScanResult | null>(null);
+  const [pendingExportConfig, setPendingExportConfig] = useState<CodeBundleConfigPreview | null>(null);
   const [configPreview, setConfigPreview] = useState<CodeBundleConfigPreview | null>(null);
   const [prepareResult, setPrepareResult] = useState<PrepareExportConfigResult | null>(null);
   const [exportResult, setExportResult] = useState<RunExportResult | null>(null);
@@ -90,7 +95,8 @@ export default function App(): JSX.Element {
   const canPrepareExport =
     Boolean(projectFolder && outputFile && scanResult && selectionSummary.estimatedExportFileCount > 0) &&
     !isPreparingExport &&
-    !isExporting;
+    !isExporting &&
+    !isSecretScanning;
   const canRunExport = canPrepareExport;
 
   function createConfigPreview(): CodeBundleConfigPreview | null {
@@ -347,6 +353,10 @@ export default function App(): JSX.Element {
     }
   }
 
+  function getSelectedRelativeFilePaths(): string[] {
+    return treeIndex.filePaths.filter((relativePath) => isFileSelected(relativePath, selection, treeIndex));
+  }
+
   async function runExport(): Promise<void> {
     const nextConfigPreview = createConfigPreview();
     if (!nextConfigPreview || !canRunExport) {
@@ -360,6 +370,64 @@ export default function App(): JSX.Element {
     setCopyStatus(null);
     setToast(null);
     setConfigPreview(nextConfigPreview);
+    setSecretScanResult(null);
+
+    // Step 1: Scan for secrets before exporting
+    setIsSecretScanning(true);
+    setExportStatus("Scanning for secrets...");
+
+    try {
+      const relativeFilePaths = getSelectedRelativeFilePaths();
+      const scanSecretResult = await window.codeBundle.scanForSecrets({
+        projectRoot: projectFolder!,
+        filePaths: relativeFilePaths,
+        maxFileSizeKb
+      });
+
+      if (scanSecretResult.findings.length > 0) {
+        // Show warning modal — user decides whether to continue
+        setSecretScanResult(scanSecretResult);
+        setPendingExportConfig(nextConfigPreview);
+        setExportStatus(null);
+        setIsSecretScanning(false);
+        return;
+      }
+    } catch (caughtError) {
+      // Secret scan failure should not block export — warn and continue
+      setToast({
+        kind: "info",
+        title: "Secret scan skipped",
+        message: caughtError instanceof Error ? caughtError.message : "Could not scan for secrets."
+      });
+    } finally {
+      setIsSecretScanning(false);
+    }
+
+    // Step 2: No secrets found, proceed with export
+    await executeExport(nextConfigPreview);
+  }
+
+  function handleSecretScanCancel(): void {
+    setSecretScanResult(null);
+    setPendingExportConfig(null);
+    setExportStatus(null);
+    setToast({
+      kind: "info",
+      title: "Export cancelled",
+      message: "Export was cancelled after secret scan findings."
+    });
+  }
+
+  async function handleSecretScanContinue(): Promise<void> {
+    const config = pendingExportConfig;
+    setSecretScanResult(null);
+    setPendingExportConfig(null);
+    if (config) {
+      await executeExport(config);
+    }
+  }
+
+  async function executeExport(nextConfigPreview: CodeBundleConfigPreview): Promise<void> {
     setIsExporting(true);
     setExportStatus("Preparing config...");
 
@@ -447,6 +515,13 @@ export default function App(): JSX.Element {
   return (
     <main style={styles.shell}>
       <div style={styles.shellInner}>
+        {secretScanResult ? (
+          <SecretScanWarning
+            scanResult={secretScanResult}
+            onCancel={handleSecretScanCancel}
+            onContinue={() => void handleSecretScanContinue()}
+          />
+        ) : null}
         {toast ? (
           <ExportToast
             kind={toast.kind}
@@ -500,6 +575,7 @@ export default function App(): JSX.Element {
                 canRunExport={canRunExport}
                 isPreparingExport={isPreparingExport}
                 isExporting={isExporting}
+                isSecretScanning={isSecretScanning}
                 exportStatus={exportStatus}
                 onOutputFileChange={updateOutputFile}
                 onChooseOutputFile={chooseOutputFile}

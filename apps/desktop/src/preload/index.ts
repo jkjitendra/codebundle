@@ -9,7 +9,9 @@ import type {
   RunExportResult,
   SavePreferencesResult,
   ScanProjectOptions,
-  ScanProjectResult
+  ScanProjectResult,
+  SecretScanOptions,
+  SecretScanResult
 } from "../shared/types";
 
 const api: CodeBundleApi = {
@@ -26,7 +28,9 @@ const api: CodeBundleApi = {
   savePreferences: (preferences: CodeBundlePreferences) =>
     ipcRenderer.invoke("codebundle:save-preferences", preferences) as Promise<SavePreferencesResult>,
   getDefaultExcludes: () => ipcRenderer.invoke("codebundle:get-default-excludes") as Promise<string[]>,
-  getAppInfo: () => ipcRenderer.invoke("codebundle:get-app-info") as Promise<AppInfo>
+  getAppInfo: () => ipcRenderer.invoke("codebundle:get-app-info") as Promise<AppInfo>,
+  scanForSecrets: (options: SecretScanOptions) =>
+    ipcRenderer.invoke("codebundle:scan-secrets", options) as Promise<SecretScanResult>
 };
 
 contextBridge.exposeInMainWorld("codeBundle", api);
