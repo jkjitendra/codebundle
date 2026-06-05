@@ -4,6 +4,7 @@ interface ExportControlsProps {
   canRunExport: boolean;
   isPreparingExport: boolean;
   isExporting: boolean;
+  isSecretScanning: boolean;
   exportStatus: string | null;
   onOutputFileChange: (value: string) => void;
   onChooseOutputFile: () => void;
@@ -20,6 +21,7 @@ export function ExportControls({
   canRunExport,
   isPreparingExport,
   isExporting,
+  isSecretScanning,
   exportStatus,
   onOutputFileChange,
   onChooseOutputFile,
@@ -54,10 +56,10 @@ export function ExportControls({
         <button
           type="button"
           style={canRunExport ? styles.runButton : styles.disabledButton}
-          disabled={!canRunExport || isExporting}
+          disabled={!canRunExport || isExporting || isSecretScanning}
           onClick={onRunExport}
         >
-          {isExporting ? "Exporting..." : "Run Export"}
+          {isSecretScanning ? "Scanning for secrets..." : isExporting ? "Exporting..." : "Run Export"}
         </button>
         {isExporting ? (
           <button type="button" style={styles.cancelButton} onClick={onCancelExport}>
