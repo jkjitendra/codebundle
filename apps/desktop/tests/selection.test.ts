@@ -203,10 +203,15 @@ describe("selection model", () => {
     selection = toggleFileSelection("README.md", selection, index);
     selection = toggleFileSelection("src/app.ts", selection, index);
 
+    // 3 selected files: util (100) + deep (100) + README (50) = 250 raw bytes
+    // Overhead: 500 header + 3 × 120 per-file = 860
+    // Total: 250 + 860 = 1110, tokens: ceil(1110/4) = 278
     expect(getSelectionSummary(selection, index)).toEqual({
       selectedFilesCount: 1,
       selectedFoldersCount: 1,
-      estimatedExportFileCount: 3
+      estimatedExportFileCount: 3,
+      estimatedTotalBytes: 1110,
+      estimatedTokenCount: 278
     });
   });
 
