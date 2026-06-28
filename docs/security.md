@@ -126,6 +126,26 @@ The scanner uses regex-based rules to detect common secret patterns:
 
 To manually test the secret scanner, create a non-excluded file such as `src/fake-secret-test.ts` containing a fake GitHub token (e.g. `ghp_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx`) or AWS key (`AKIAIOSFODNN7EXAMPLE`). Do not use `.env` files for testing since `.env` and `.env.*` are default-excluded and will not be scanned.
 
+## Export Preview
+
+CodeBundle supports an in-app export preview that generates export content in memory without writing to disk.
+
+### Security Design
+
+- **User-triggered.** Preview generation is initiated only by an explicit user action ("Generate Preview" button). It is never triggered automatically.
+- **Secret scan before preview.** The same secret scanner that runs before export also runs before preview generation. If secrets are detected, the user sees a warning and must confirm before the preview is generated.
+- **Bounded content.** Preview content is truncated by both line count (default 500 lines) and byte count (default 200 KB) in the main process before being sent to the renderer. The renderer never receives unbounded file content.
+- **Main process only.** File reading and preview rendering happen entirely in the Electron main process. The renderer receives only the pre-truncated preview string and metadata (total selected files, previewed files, total lines, truncated flag, format).
+- **Local-only.** Preview content is never transmitted over the network.
+- **Not persisted.** Preview content is held in React state only while the preview modal is open. It is not written to disk, temp files, preferences, or logs.
+- **Not logged.** Preview content is not included in error messages, log output, or crash reports. Error details are capped at 500 characters and never contain file content.
+- **Path validation.** Preview uses the same path security checks as export: paths must be relative, must resolve inside projectRoot, and path traversal is rejected.
+- **No output file written.** Unlike the full export flow, preview generation does not write any output file. The preview modal provides a "Confirm Export" action that triggers the standard export flow if the user wants to proceed.
+
+### Known Gaps
+
+The preview renderer is implemented in Node.js in the main process and mirrors the Python exporter's output format. However, it does not use the Python exporter directly. Minor formatting differences between the preview and the final export may occur. The preview is intended as a representative sample, not a byte-exact match.
+
 ## Why Not a Hosted Web Scanner
 
 CodeBundle should not be deployed as a hosted web scanner. A hosted scanner would require uploading project files or granting a remote service access to local source code, which conflicts with the local-first security model. The intended model is local Electron UI plus local Python CLI execution.

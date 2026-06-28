@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { ExcludeRulesEditor } from "./components/ExcludeRulesEditor";
 import { ExportControls } from "./components/ExportControls";
+import { ExportPreviewModal } from "./components/ExportPreviewModal";
 import { ExportToast } from "./components/ExportToast";
 import { FileTree } from "./components/FileTree";
 import { InlineInfo } from "./components/InlineInfo";
@@ -24,6 +25,7 @@ import type {
   CodeBundlePreferences,
   FileTreeNode,
   PrepareExportConfigResult,
+  PreviewResult,
   RunExportResult,
   ScanProjectResult,
   SecretScanResult
@@ -31,7 +33,11 @@ import type {
 
 const DEFAULT_MAX_FILE_SIZE_KB = 500;
 const TOAST_DISMISS_MS = 9_000;
+const DEFAULT_PREVIEW_MAX_LINES = 500;
+const DEFAULT_PREVIEW_MAX_BYTES = 200_000;
 const settingsIcon = new URL("../../../../resources/icons/settings.svg", import.meta.url).href;
+
+type PendingAction = "export" | "preview";
 
 interface ExportToastState {
   kind: "success" | "error" | "info";
@@ -61,6 +67,7 @@ export default function App(): JSX.Element {
   const [isSecretScanning, setIsSecretScanning] = useState(false);
   const [secretScanResult, setSecretScanResult] = useState<SecretScanResult | null>(null);
   const [pendingExportConfig, setPendingExportConfig] = useState<CodeBundleConfigPreview | null>(null);
+  const [pendingAction, setPendingAction] = useState<PendingAction | null>(null);
   const [configPreview, setConfigPreview] = useState<CodeBundleConfigPreview | null>(null);
   const [prepareResult, setPrepareResult] = useState<PrepareExportConfigResult | null>(null);
   const [exportResult, setExportResult] = useState<RunExportResult | null>(null);
@@ -72,6 +79,9 @@ export default function App(): JSX.Element {
   const [preferencesLoaded, setPreferencesLoaded] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [warnings, setWarnings] = useState<string[]>([]);
+  const [isGeneratingPreview, setIsGeneratingPreview] = useState(false);
+  const [previewResult, setPreviewResult] = useState<PreviewResult | null>(null);
+  const [showPreviewModal, setShowPreviewModal] = useState(false);
 
   const tree = useMemo(() => buildFileTree(scanResult?.nodes ?? []), [scanResult]);
   const treeIndex = useMemo(() => buildTreeIndex(tree), [tree]);
@@ -97,8 +107,15 @@ export default function App(): JSX.Element {
     Boolean(projectFolder && outputFile && scanResult && selectionSummary.estimatedExportFileCount > 0) &&
     !isPreparingExport &&
     !isExporting &&
-    !isSecretScanning;
+    !isSecretScanning &&
+    !isGeneratingPreview;
   const canRunExport = canPrepareExport;
+  const canGeneratePreview =
+    Boolean(projectFolder && outputFile && scanResult && selectionSummary.estimatedExportFileCount > 0) &&
+    !isPreparingExport &&
+    !isExporting &&
+    !isSecretScanning &&
+    !isGeneratingPreview;
 
   function createConfigPreview(): CodeBundleConfigPreview | null {
     if (!projectFolder || !outputFile || !scanResult) {
@@ -358,12 +375,7 @@ export default function App(): JSX.Element {
     return treeIndex.filePaths.filter((relativePath) => isFileSelected(relativePath, selection, treeIndex));
   }
 
-  async function runExport(): Promise<void> {
-    const nextConfigPreview = createConfigPreview();
-    if (!nextConfigPreview || !canRunExport) {
-      return;
-    }
-
+  async function runSecretScanThenAct(nextConfigPreview: CodeBundleConfigPreview, action: PendingAction): Promise<void> {
     setError(null);
     setPrepareResult(null);
     setExportResult(null);
@@ -372,8 +384,10 @@ export default function App(): JSX.Element {
     setToast(null);
     setConfigPreview(nextConfigPreview);
     setSecretScanResult(null);
+    setPreviewResult(null);
+    setShowPreviewModal(false);
 
-    // Step 1: Scan for secrets before exporting
+    // Step 1: Scan for secrets
     setIsSecretScanning(true);
     setExportStatus("Scanning for secrets...");
 
@@ -389,12 +403,13 @@ export default function App(): JSX.Element {
         // Show warning modal — user decides whether to continue
         setSecretScanResult(scanSecretResult);
         setPendingExportConfig(nextConfigPreview);
+        setPendingAction(action);
         setExportStatus(null);
         setIsSecretScanning(false);
         return;
       }
     } catch (caughtError) {
-      // Secret scan failure should not block export — warn and continue
+      // Secret scan failure should not block action — warn and continue
       setToast({
         kind: "info",
         title: "Secret scan skipped",
@@ -404,28 +419,116 @@ export default function App(): JSX.Element {
       setIsSecretScanning(false);
     }
 
-    // Step 2: No secrets found, proceed with export
-    await executeExport(nextConfigPreview);
+    // Step 2: No secrets found, proceed with action
+    if (action === "export") {
+      await executeExport(nextConfigPreview);
+    } else {
+      await executeGeneratePreview(nextConfigPreview);
+    }
+  }
+
+  async function runExport(): Promise<void> {
+    const nextConfigPreview = createConfigPreview();
+    if (!nextConfigPreview || !canRunExport) {
+      return;
+    }
+    await runSecretScanThenAct(nextConfigPreview, "export");
+  }
+
+  async function generatePreview(): Promise<void> {
+    const nextConfigPreview = createConfigPreview();
+    if (!nextConfigPreview || !canGeneratePreview) {
+      return;
+    }
+    // Use concrete selected file paths from the UI tree, not folders.
+    // The UI tree already reflects default excludes, custom excludes,
+    // max-size scan behavior, and .gitignore behavior.
+    const selectedFiles = getSelectedRelativeFilePaths();
+    const previewConfig = {
+      ...nextConfigPreview,
+      files: selectedFiles,
+      folders: [] as string[]
+    };
+    await runSecretScanThenAct(previewConfig, "preview");
   }
 
   function handleSecretScanCancel(): void {
+    const action = pendingAction;
     setSecretScanResult(null);
     setPendingExportConfig(null);
+    setPendingAction(null);
     setExportStatus(null);
     setToast({
       kind: "info",
-      title: "Export cancelled",
-      message: "Export was cancelled after secret scan findings."
+      title: action === "preview" ? "Preview cancelled" : "Export cancelled",
+      message: action === "preview"
+        ? "Preview was cancelled after secret scan findings."
+        : "Export was cancelled after secret scan findings."
     });
   }
 
   async function handleSecretScanContinue(): Promise<void> {
     const config = pendingExportConfig;
+    const action = pendingAction;
     setSecretScanResult(null);
     setPendingExportConfig(null);
+    setPendingAction(null);
     if (config) {
-      await executeExport(config);
+      if (action === "preview") {
+        await executeGeneratePreview(config);
+      } else {
+        await executeExport(config);
+      }
     }
+  }
+
+  async function executeGeneratePreview(nextConfigPreview: CodeBundleConfigPreview): Promise<void> {
+    setIsGeneratingPreview(true);
+    setExportStatus("Generating preview...");
+
+    try {
+      const result = await window.codeBundle.generatePreview({
+        config: nextConfigPreview,
+        maxPreviewLines: DEFAULT_PREVIEW_MAX_LINES,
+        maxPreviewBytes: DEFAULT_PREVIEW_MAX_BYTES
+      });
+
+      if (result.success) {
+        setPreviewResult(result.preview);
+        setShowPreviewModal(true);
+        setExportStatus(null);
+      } else {
+        setToast({
+          kind: "error",
+          title: "Preview failed",
+          message: result.error.details ?? result.error.message
+        });
+        setExportStatus(null);
+      }
+    } catch (caughtError) {
+      setToast({
+        kind: "error",
+        title: "Preview failed",
+        message: caughtError instanceof Error ? caughtError.message : "Could not generate preview."
+      });
+      setExportStatus(null);
+    } finally {
+      setIsGeneratingPreview(false);
+    }
+  }
+
+  function handlePreviewConfirmExport(): void {
+    setShowPreviewModal(false);
+    const config = configPreview;
+    setPreviewResult(null);
+    if (config) {
+      void executeExport(config);
+    }
+  }
+
+  function handlePreviewClose(): void {
+    setShowPreviewModal(false);
+    setPreviewResult(null);
   }
 
   async function executeExport(nextConfigPreview: CodeBundleConfigPreview): Promise<void> {
@@ -521,6 +624,15 @@ export default function App(): JSX.Element {
             scanResult={secretScanResult}
             onCancel={handleSecretScanCancel}
             onContinue={() => void handleSecretScanContinue()}
+            continueLabel={pendingAction === "preview" ? "Continue to Preview" : "Continue Anyway"}
+            cancelLabel={pendingAction === "preview" ? "Cancel Preview" : "Cancel Export"}
+          />
+        ) : null}
+        {showPreviewModal && previewResult ? (
+          <ExportPreviewModal
+            preview={previewResult}
+            onClose={handlePreviewClose}
+            onConfirmExport={handlePreviewConfirmExport}
           />
         ) : null}
         {toast ? (
@@ -574,15 +686,18 @@ export default function App(): JSX.Element {
                 outputFile={outputFile}
                 canPrepareExport={canPrepareExport}
                 canRunExport={canRunExport}
+                canGeneratePreview={canGeneratePreview}
                 isPreparingExport={isPreparingExport}
                 isExporting={isExporting}
                 isSecretScanning={isSecretScanning}
+                isGeneratingPreview={isGeneratingPreview}
                 exportStatus={exportStatus}
                 onOutputFileChange={updateOutputFile}
                 onChooseOutputFile={chooseOutputFile}
                 onPrepareExport={() => void prepareExportConfig()}
                 onRunExport={() => void runExport()}
                 onCancelExport={() => void cancelExport()}
+                onGeneratePreview={() => void generatePreview()}
               />
             </section>
 
