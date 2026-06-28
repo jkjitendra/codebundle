@@ -1,4 +1,5 @@
 import type { CodeBundleConfigPreview, FileTreeNode } from "./types";
+import { EXPORT_HEADER_OVERHEAD_BYTES, PER_FILE_MARKDOWN_OVERHEAD_BYTES, estimateTokenCount } from "./tokenEstimate";
 import type { TreeIndex } from "./treeUtils";
 
 export type SelectionState = "checked" | "unchecked" | "indeterminate";
@@ -113,37 +114,57 @@ export function clearSelection(): SelectionModel {
 }
 
 export function getSelectionSummary(selection: SelectionModel, index: TreeIndex) {
-  let estimatedExportFileCount = 0;
+  let estimatedExportFileCountRaw = 0;
 
   for (const folderPath of selection.selectedFolders) {
     if (hasSelectedFolderAncestor(folderPath, selection, index)) {
       continue;
     }
-    estimatedExportFileCount += index.descendantFileCountByFolder.get(folderPath) ?? 0;
+    estimatedExportFileCountRaw += index.descendantFileCountByFolder.get(folderPath) ?? 0;
   }
 
   for (const filePath of selection.selectedFiles) {
     if (!isSelectedByFolder(filePath, selection, index)) {
-      estimatedExportFileCount += 1;
+      estimatedExportFileCountRaw += 1;
     }
   }
 
   for (const filePath of selection.deselectedFiles) {
     if (isSelectedByFolder(filePath, selection, index)) {
-      estimatedExportFileCount -= 1;
+      estimatedExportFileCountRaw -= 1;
     }
   }
 
   for (const folderPath of selection.deselectedFolders) {
     if (isSelectedByAncestorFolder(folderPath, selection, index)) {
-      estimatedExportFileCount -= index.descendantFileCountByFolder.get(folderPath) ?? 0;
+      estimatedExportFileCountRaw -= index.descendantFileCountByFolder.get(folderPath) ?? 0;
     }
+  }
+
+  const estimatedExportFileCount = Math.max(0, estimatedExportFileCountRaw);
+
+  // Compute estimated total bytes from selected files
+  let estimatedTotalBytes = 0;
+  for (const filePath of index.filePaths) {
+    if (isFileSelected(filePath, selection, index)) {
+      const node = index.nodeByPath.get(filePath);
+      if (node && node.type === "file") {
+        estimatedTotalBytes += node.sizeBytes;
+      }
+    }
+  }
+
+  // Apply export wrapper overhead when files are selected
+  if (estimatedExportFileCount > 0) {
+    estimatedTotalBytes += EXPORT_HEADER_OVERHEAD_BYTES + estimatedExportFileCount * PER_FILE_MARKDOWN_OVERHEAD_BYTES;
   }
 
   return {
     selectedFilesCount: selection.selectedFiles.size,
     selectedFoldersCount: selection.selectedFolders.size,
-    estimatedExportFileCount: Math.max(0, estimatedExportFileCount)
+    estimatedExportFileCount,
+    estimatedTotalBytes,
+    estimatedTokenCount: estimateTokenCount(estimatedTotalBytes)
   };
 }
 
