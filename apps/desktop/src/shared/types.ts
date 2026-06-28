@@ -198,6 +198,37 @@ export interface SecretScanResult {
   hasMoreFindings: boolean;
 }
 
+export interface GeneratePreviewOptions {
+  config: CodeBundleExportConfig;
+  maxPreviewLines: number;
+  maxPreviewBytes: number;
+}
+
+export interface PreviewResult {
+  content: string;
+  totalSelectedFiles: number;
+  previewedFiles: number;
+  totalLines: number;
+  truncated: boolean;
+  format: "markdown" | "text";
+}
+
+export interface GeneratePreviewSuccess {
+  success: true;
+  preview: PreviewResult;
+}
+
+export interface GeneratePreviewFailure {
+  success: false;
+  error: {
+    code: string;
+    message: string;
+    details?: string;
+  };
+}
+
+export type GeneratePreviewResult = GeneratePreviewSuccess | GeneratePreviewFailure;
+
 export interface CodeBundleApi {
   chooseProjectFolder: () => Promise<string | null>;
   chooseOutputFile: () => Promise<string | null>;
@@ -211,6 +242,7 @@ export interface CodeBundleApi {
   getDefaultExcludes: () => Promise<string[]>;
   getAppInfo: () => Promise<AppInfo>;
   scanForSecrets: (options: SecretScanOptions) => Promise<SecretScanResult>;
+  generatePreview: (options: GeneratePreviewOptions) => Promise<GeneratePreviewResult>;
 }
 
 declare global {
