@@ -16,6 +16,7 @@ import {
   selectPaths,
   toggleNodeSelection
 } from "./lib/selection";
+import { formatBytes, formatTokenCount, getContextBadges } from "./lib/tokenEstimate";
 import { buildFileTree, buildTreeIndex, collectDirectoryPaths, collectExtensions, collectFilePaths, filterTree } from "./lib/treeUtils";
 import type {
   AppInfo,
@@ -701,6 +702,32 @@ export default function App(): JSX.Element {
                   <span style={styles.filesEstimateLabel}>Estimated export files</span>
                   <span style={styles.filesEstimateValue}>{selectionSummary.estimatedExportFileCount}</span>
                 </div>
+                <div style={styles.tokenStatsRow}>
+                  <div style={styles.tokenStat}>
+                    <span style={styles.tokenStatLabel}>Size</span>
+                    <span style={styles.tokenStatValue}>{formatBytes(selectionSummary.estimatedTotalBytes)}</span>
+                  </div>
+                  <span style={styles.tokenStatDivider}>·</span>
+                  <div style={styles.tokenStat}>
+                    <span style={styles.tokenStatLabel}>Tokens</span>
+                    <span style={styles.tokenStatValue}>{formatTokenCount(selectionSummary.estimatedTokenCount)}</span>
+                  </div>
+                </div>
+                {selectionSummary.estimatedTokenCount > 0 ? (
+                  <div style={styles.contextBadgesRow}>
+                    {getContextBadges(selectionSummary.estimatedTokenCount).map((badge) => (
+                      <span
+                        key={badge.label}
+                        style={{
+                          ...styles.contextBadge,
+                          ...(badge.state === "green" ? styles.contextBadgeGreen : badge.state === "amber" ? styles.contextBadgeAmber : styles.contextBadgeRed)
+                        }}
+                      >
+                        {badge.state === "green" ? "✓" : badge.state === "amber" ? "⚠" : "✗"} {badge.label}
+                      </span>
+                    ))}
+                  </div>
+                ) : null}
                 {scanResult ? (
                   <p style={styles.filesScanText}>
                     Scanned {scanResult.summary.totalFiles} files and {scanResult.summary.totalFolders} folders. Skipped{" "}
@@ -971,6 +998,63 @@ const styles = {
     fontSize: 13,
     lineHeight: 1.45,
     textAlign: "right"
+  },
+  tokenStatsRow: {
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "flex-end",
+    gap: 10
+  },
+  tokenStat: {
+    display: "flex",
+    alignItems: "baseline",
+    gap: 6
+  },
+  tokenStatLabel: {
+    color: "#667085",
+    fontSize: 12,
+    fontWeight: 700
+  },
+  tokenStatValue: {
+    color: "#344054",
+    fontSize: 14,
+    fontWeight: 850
+  },
+  tokenStatDivider: {
+    color: "#d0d5dd",
+    fontSize: 14,
+    fontWeight: 700
+  },
+  contextBadgesRow: {
+    display: "flex",
+    justifyContent: "flex-end",
+    gap: 6,
+    flexWrap: "wrap" as const
+  },
+  contextBadge: {
+    display: "inline-flex",
+    alignItems: "center",
+    height: 24,
+    padding: "0 10px",
+    borderRadius: 8,
+    fontSize: 11,
+    fontWeight: 750,
+    letterSpacing: 0.2
+  },
+  contextBadgeGreen: {
+    background: "#ecfdf3",
+    border: "1px solid #a6f4c5",
+    color: "#027a48"
+  },
+  contextBadgeAmber: {
+    background: "#fffaeb",
+    border: "1px solid #fedf89",
+    color: "#93370d"
+  },
+  contextBadgeRed: {
+    background: "#fef3f2",
+    border: "1px solid #fecdca",
+    color: "#b42318"
   },
   options: {
     display: "grid",

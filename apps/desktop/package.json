@@ -1,6 +1,6 @@
 {
   "name": "codebundle-desktop",
-  "version": "0.1.5",
+  "version": "0.1.6",
   "private": true,
   "description": "Local-first desktop app for building CodeBundle exports.",
   "author": {
