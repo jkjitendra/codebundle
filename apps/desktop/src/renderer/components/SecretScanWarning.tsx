@@ -4,9 +4,17 @@ interface SecretScanWarningProps {
   scanResult: SecretScanResult;
   onCancel: () => void;
   onContinue: () => void;
+  continueLabel?: string;
+  cancelLabel?: string;
 }
 
-export function SecretScanWarning({ scanResult, onCancel, onContinue }: SecretScanWarningProps): JSX.Element {
+export function SecretScanWarning({
+  scanResult,
+  onCancel,
+  onContinue,
+  continueLabel = "Continue Anyway",
+  cancelLabel = "Cancel Export"
+}: SecretScanWarningProps): JSX.Element {
   const highCount = scanResult.findings.filter((f) => f.severity === "high").length;
   const mediumCount = scanResult.findings.filter((f) => f.severity === "medium").length;
 
@@ -60,10 +68,10 @@ export function SecretScanWarning({ scanResult, onCancel, onContinue }: SecretSc
 
         <div style={styles.actions}>
           <button type="button" style={styles.cancelButton} onClick={onCancel}>
-            Cancel Export
+            {cancelLabel}
           </button>
           <button type="button" style={styles.continueButton} onClick={onContinue}>
-            Continue Anyway
+            {continueLabel}
           </button>
         </div>
       </div>
