@@ -3,6 +3,7 @@ import { isAbsolute } from "node:path";
 import { DEFAULT_EXCLUDES } from "./defaultRules";
 import { prepareExportConfig } from "./configWriter";
 import { readPreferences, savePreferences } from "./preferences";
+import { generatePreview } from "./previewGenerator";
 import { runExporter } from "./runExporter";
 import { scanProject } from "./scanFiles";
 import { scanFilesForSecrets } from "./secretScanner";
@@ -132,4 +133,6 @@ export function registerIpcHandlers(): void {
   );
 
   ipcMain.handle("codebundle:scan-secrets", async (_event, options) => scanFilesForSecrets(options));
+
+  ipcMain.handle("codebundle:generate-preview", async (_event, options) => generatePreview(options));
 }
