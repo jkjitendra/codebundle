@@ -4,6 +4,8 @@ import type {
   CodeBundleApi,
   CodeBundleExportConfig,
   CodeBundlePreferences,
+  GeneratePreviewOptions,
+  GeneratePreviewResult,
   PrepareExportConfigResult,
   RevealPathResult,
   RunExportResult,
@@ -30,7 +32,9 @@ const api: CodeBundleApi = {
   getDefaultExcludes: () => ipcRenderer.invoke("codebundle:get-default-excludes") as Promise<string[]>,
   getAppInfo: () => ipcRenderer.invoke("codebundle:get-app-info") as Promise<AppInfo>,
   scanForSecrets: (options: SecretScanOptions) =>
-    ipcRenderer.invoke("codebundle:scan-secrets", options) as Promise<SecretScanResult>
+    ipcRenderer.invoke("codebundle:scan-secrets", options) as Promise<SecretScanResult>,
+  generatePreview: (options: GeneratePreviewOptions) =>
+    ipcRenderer.invoke("codebundle:generate-preview", options) as Promise<GeneratePreviewResult>
 };
 
 contextBridge.exposeInMainWorld("codeBundle", api);
