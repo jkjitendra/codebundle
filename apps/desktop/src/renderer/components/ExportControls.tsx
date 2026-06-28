@@ -2,15 +2,18 @@ interface ExportControlsProps {
   outputFile: string | null;
   canPrepareExport: boolean;
   canRunExport: boolean;
+  canGeneratePreview: boolean;
   isPreparingExport: boolean;
   isExporting: boolean;
   isSecretScanning: boolean;
+  isGeneratingPreview: boolean;
   exportStatus: string | null;
   onOutputFileChange: (value: string) => void;
   onChooseOutputFile: () => void;
   onPrepareExport: () => void;
   onRunExport: () => void;
   onCancelExport: () => void;
+  onGeneratePreview: () => void;
 }
 
 const fileIcon = new URL("../../../../../resources/icons/file.svg", import.meta.url).href;
@@ -19,15 +22,18 @@ export function ExportControls({
   outputFile,
   canPrepareExport,
   canRunExport,
+  canGeneratePreview,
   isPreparingExport,
   isExporting,
   isSecretScanning,
+  isGeneratingPreview,
   exportStatus,
   onOutputFileChange,
   onChooseOutputFile,
   onPrepareExport,
   onRunExport,
-  onCancelExport
+  onCancelExport,
+  onGeneratePreview
 }: ExportControlsProps): JSX.Element {
   return (
     <section style={styles.section}>
@@ -53,14 +59,24 @@ export function ExportControls({
         </div>
       </div>
       <div style={styles.actions}>
-        <button
-          type="button"
-          style={canRunExport ? styles.runButton : styles.disabledButton}
-          disabled={!canRunExport || isExporting || isSecretScanning}
-          onClick={onRunExport}
-        >
-          {isSecretScanning ? "Scanning for secrets..." : isExporting ? "Exporting..." : "Run Export"}
-        </button>
+        <div style={styles.actionRow}>
+          <button
+            type="button"
+            style={canGeneratePreview ? styles.previewButton : styles.disabledButton}
+            disabled={!canGeneratePreview || isGeneratingPreview || isExporting || isSecretScanning}
+            onClick={onGeneratePreview}
+          >
+            {isGeneratingPreview ? "Generating..." : "Generate Preview"}
+          </button>
+          <button
+            type="button"
+            style={canRunExport ? styles.runButton : styles.disabledButton}
+            disabled={!canRunExport || isExporting || isSecretScanning}
+            onClick={onRunExport}
+          >
+            {isSecretScanning ? "Scanning for secrets..." : isExporting ? "Exporting..." : "Run Export"}
+          </button>
+        </div>
         {isExporting ? (
           <button type="button" style={styles.cancelButton} onClick={onCancelExport}>
             Cancel Export
@@ -85,6 +101,7 @@ export function ExportControls({
     </section>
   );
 }
+
 
 const styles = {
   section: {
@@ -164,6 +181,22 @@ const styles = {
   actions: {
     display: "grid",
     gap: 8
+  },
+  actionRow: {
+    display: "grid",
+    gridTemplateColumns: "1fr 1fr",
+    gap: 8
+  },
+  previewButton: {
+    height: 42,
+    padding: "0 18px",
+    border: "1px solid #c8d1df",
+    borderRadius: 12,
+    background: "#ffffff",
+    color: "#243047",
+    fontSize: 14,
+    fontWeight: 800,
+    cursor: "pointer"
   },
   advanced: {
     display: "grid",
