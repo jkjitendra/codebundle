@@ -2,6 +2,7 @@ import { app, dialog, ipcMain, shell } from "electron";
 import { isAbsolute } from "node:path";
 import { DEFAULT_EXCLUDES } from "./defaultRules";
 import { prepareExportConfig } from "./configWriter";
+import { validateDroppedFolder } from "./dropFolderValidation";
 import { readPreferences, savePreferences } from "./preferences";
 import { generatePreview } from "./previewGenerator";
 import { runExporter } from "./runExporter";
@@ -135,4 +136,6 @@ export function registerIpcHandlers(): void {
   ipcMain.handle("codebundle:scan-secrets", async (_event, options) => scanFilesForSecrets(options));
 
   ipcMain.handle("codebundle:generate-preview", async (_event, options) => generatePreview(options));
+
+  ipcMain.handle("codebundle:validate-dropped-folder", async (_event, path) => validateDroppedFolder(path));
 }
