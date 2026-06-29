@@ -1,6 +1,10 @@
 import { describe, expect, it, vi } from "vitest";
 import { handleDroppedProjectFolder } from "../src/renderer/App";
-import { DEFAULT_DROP_ERROR_MESSAGE, getDropErrorMessage } from "../src/renderer/components/ProjectPicker";
+import {
+  DEFAULT_DROP_ERROR_MESSAGE,
+  getDroppedFilePath,
+  getDropErrorMessage
+} from "../src/renderer/components/ProjectPicker";
 import type { ValidateDroppedFolderResult } from "../src/shared/types";
 
 function createHandlerOptions(validateResult: ValidateDroppedFolderResult) {
@@ -14,6 +18,25 @@ function createHandlerOptions(validateResult: ValidateDroppedFolderResult) {
 }
 
 describe("dropped project folder UI flow", () => {
+  it("extracts dropped paths through the preload bridge", () => {
+    const file = {} as File;
+    const getPathForFile = vi.fn(() => "/Users/user/projects/app");
+
+    expect(getDroppedFilePath(file, getPathForFile)).toBe("/Users/user/projects/app");
+    expect(getPathForFile).toHaveBeenCalledWith(file);
+  });
+
+  it("falls back to legacy File.path when the bridge path is unavailable", () => {
+    const file = { path: "/Users/user/projects/app" } as File & { path: string };
+
+    expect(getDroppedFilePath(file, () => "")).toBe("/Users/user/projects/app");
+    expect(getDroppedFilePath(file, () => { throw new Error("unsupported"); })).toBe("/Users/user/projects/app");
+  });
+
+  it("returns null when no dropped file path is available", () => {
+    expect(getDroppedFilePath({} as File, () => "")).toBeNull();
+  });
+
   it("scans a valid dropped folder using the resolved path", async () => {
     const options = createHandlerOptions({
       success: true,

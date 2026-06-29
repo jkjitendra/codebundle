@@ -21,6 +21,22 @@ export function getDropErrorMessage(result: ProjectFolderDropResult): string | n
   return result.message ?? null;
 }
 
+export function getDroppedFilePath(
+  file: File & { path?: string },
+  getPathForFile: (file: File) => string
+): string | null {
+  try {
+    const pathFromBridge = getPathForFile(file);
+    if (pathFromBridge.length > 0) {
+      return pathFromBridge;
+    }
+  } catch {
+    // Fall back to legacy Electron File.path behavior below.
+  }
+
+  return file.path && file.path.length > 0 ? file.path : null;
+}
+
 export function ProjectPicker({
   projectFolder,
   isScanning,
@@ -75,9 +91,9 @@ export function ProjectPicker({
       return;
     }
 
-    // Use the first dropped item's path. Electron exposes `.path` on File objects.
+    // Electron 32+ requires webUtils.getPathForFile; keep File.path fallback for older runtimes.
     const file = event.dataTransfer.files[0] as File & { path?: string };
-    const droppedPath = file.path;
+    const droppedPath = getDroppedFilePath(file, window.codeBundle.getPathForFile);
 
     if (!droppedPath) {
       setDropErrorMessage(DEFAULT_DROP_ERROR_MESSAGE);

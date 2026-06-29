@@ -260,6 +260,7 @@ export interface CodeBundleApi {
   scanForSecrets: (options: SecretScanOptions) => Promise<SecretScanResult>;
   generatePreview: (options: GeneratePreviewOptions) => Promise<GeneratePreviewResult>;
   validateDroppedFolder: (path: string) => Promise<ValidateDroppedFolderResult>;
+  getPathForFile: (file: File) => string;
 }
 
 declare global {

@@ -157,6 +157,7 @@ CodeBundle supports dragging a folder onto the Project Folder input to set the p
 ### Security Design
 
 - **Main process validation only.** When the user drops a folder, the renderer sends the raw dropped path string to the main process via IPC (`codebundle:validate-dropped-folder`). The main process validates the path and returns either a resolved canonical path or an error. The renderer never calls `fs.stat`, `fs.realpath`, or any other filesystem API directly.
+- **Preload path extraction.** The renderer obtains the dropped `File` path through the preload bridge using Electron's `webUtils.getPathForFile`, with a legacy `File.path` fallback for older runtimes.
 - **Absolute path required.** Relative paths are rejected before any filesystem access.
 - **Dangerous roots blocked.** System-level roots (`/`, `/etc`, `/usr`, `/System`, `/Library`, Windows drive roots) are rejected with a `DANGEROUS_PATH` error before any stat call.
 - **Directory check.** The main process calls `fs.stat` to verify the dropped item is an existing directory. File drops return a `NOT_A_DIRECTORY` error.

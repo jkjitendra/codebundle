@@ -1,4 +1,4 @@
-import { contextBridge, ipcRenderer } from "electron";
+import { contextBridge, ipcRenderer, webUtils } from "electron";
 import type {
   AppInfo,
   CodeBundleApi,
@@ -37,7 +37,8 @@ const api: CodeBundleApi = {
   generatePreview: (options: GeneratePreviewOptions) =>
     ipcRenderer.invoke("codebundle:generate-preview", options) as Promise<GeneratePreviewResult>,
   validateDroppedFolder: (path: string) =>
-    ipcRenderer.invoke("codebundle:validate-dropped-folder", path) as Promise<ValidateDroppedFolderResult>
+    ipcRenderer.invoke("codebundle:validate-dropped-folder", path) as Promise<ValidateDroppedFolderResult>,
+  getPathForFile: (file: File) => webUtils.getPathForFile(file)
 };
 
 contextBridge.exposeInMainWorld("codeBundle", api);
