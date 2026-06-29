@@ -149,3 +149,19 @@ The preview renderer is implemented in Node.js in the main process and mirrors t
 ## Why Not a Hosted Web Scanner
 
 CodeBundle should not be deployed as a hosted web scanner. A hosted scanner would require uploading project files or granting a remote service access to local source code, which conflicts with the local-first security model. The intended model is local Electron UI plus local Python CLI execution.
+
+## Drag-and-Drop Folder Input
+
+CodeBundle supports dragging a folder onto the Project Folder input to set the project root.
+
+### Security Design
+
+- **Main process validation only.** When the user drops a folder, the renderer sends the raw dropped path string to the main process via IPC (`codebundle:validate-dropped-folder`). The main process validates the path and returns either a resolved canonical path or an error. The renderer never calls `fs.stat`, `fs.realpath`, or any other filesystem API directly.
+- **Absolute path required.** Relative paths are rejected before any filesystem access.
+- **Dangerous roots blocked.** System-level roots (`/`, `/etc`, `/usr`, `/System`, `/Library`, Windows drive roots) are rejected with a `DANGEROUS_PATH` error before any stat call.
+- **Directory check.** The main process calls `fs.stat` to verify the dropped item is an existing directory. File drops return a `NOT_A_DIRECTORY` error.
+- **Symlink target validation.** The canonical path is resolved via `fs.realpath` and checked again so a safe-looking symlink to a system root still returns `DANGEROUS_PATH`, and a symlink to the home directory returns `HOME_DIRECTORY` with the resolved canonical home path.
+- **Home directory confirmation.** Dropping the home directory returns `HOME_DIRECTORY`; the renderer asks for confirmation before scanning with the same allow flag used by the manual scan flow. If validation returned a canonical resolved path, scanning uses that path after confirmation.
+- **Inline invalid-drop feedback.** Validation failures are returned to the Project Folder drop zone and shown inline as red drop-zone feedback.
+- **No file content read.** Path validation reads only directory metadata (`stat`). No file content is accessed during drop validation.
+- **Error messages are safe.** Error responses to the renderer contain only short fixed-text error codes and pre-written messages. Filesystem error details (ENOENT stack traces, etc.) are not forwarded to the renderer.
