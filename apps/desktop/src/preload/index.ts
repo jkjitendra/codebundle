@@ -13,7 +13,8 @@ import type {
   ScanProjectOptions,
   ScanProjectResult,
   SecretScanOptions,
-  SecretScanResult
+  SecretScanResult,
+  ValidateDroppedFolderResult
 } from "../shared/types";
 
 const api: CodeBundleApi = {
@@ -34,7 +35,9 @@ const api: CodeBundleApi = {
   scanForSecrets: (options: SecretScanOptions) =>
     ipcRenderer.invoke("codebundle:scan-secrets", options) as Promise<SecretScanResult>,
   generatePreview: (options: GeneratePreviewOptions) =>
-    ipcRenderer.invoke("codebundle:generate-preview", options) as Promise<GeneratePreviewResult>
+    ipcRenderer.invoke("codebundle:generate-preview", options) as Promise<GeneratePreviewResult>,
+  validateDroppedFolder: (path: string) =>
+    ipcRenderer.invoke("codebundle:validate-dropped-folder", path) as Promise<ValidateDroppedFolderResult>
 };
 
 contextBridge.exposeInMainWorld("codeBundle", api);
