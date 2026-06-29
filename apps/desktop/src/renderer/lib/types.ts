@@ -35,5 +35,8 @@ export type {
   ScanSummary,
   SecretFinding,
   SecretScanOptions,
-  SecretScanResult
+  SecretScanResult,
+  ValidateDroppedFolderFailure,
+  ValidateDroppedFolderResult,
+  ValidateDroppedFolderSuccess
 } from "../../shared/types";

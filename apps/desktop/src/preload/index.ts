@@ -1,4 +1,4 @@
-import { contextBridge, ipcRenderer } from "electron";
+import { contextBridge, ipcRenderer, webUtils } from "electron";
 import type {
   AppInfo,
   CodeBundleApi,
@@ -13,7 +13,8 @@ import type {
   ScanProjectOptions,
   ScanProjectResult,
   SecretScanOptions,
-  SecretScanResult
+  SecretScanResult,
+  ValidateDroppedFolderResult
 } from "../shared/types";
 
 const api: CodeBundleApi = {
@@ -34,7 +35,10 @@ const api: CodeBundleApi = {
   scanForSecrets: (options: SecretScanOptions) =>
     ipcRenderer.invoke("codebundle:scan-secrets", options) as Promise<SecretScanResult>,
   generatePreview: (options: GeneratePreviewOptions) =>
-    ipcRenderer.invoke("codebundle:generate-preview", options) as Promise<GeneratePreviewResult>
+    ipcRenderer.invoke("codebundle:generate-preview", options) as Promise<GeneratePreviewResult>,
+  validateDroppedFolder: (path: string) =>
+    ipcRenderer.invoke("codebundle:validate-dropped-folder", path) as Promise<ValidateDroppedFolderResult>,
+  getPathForFile: (file: File) => webUtils.getPathForFile(file)
 };
 
 contextBridge.exposeInMainWorld("codeBundle", api);

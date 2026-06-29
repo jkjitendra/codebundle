@@ -229,6 +229,22 @@ export interface GeneratePreviewFailure {
 
 export type GeneratePreviewResult = GeneratePreviewSuccess | GeneratePreviewFailure;
 
+export interface ValidateDroppedFolderSuccess {
+  success: true;
+  resolvedPath: string;
+}
+
+export interface ValidateDroppedFolderFailure {
+  success: false;
+  resolvedPath?: string;
+  error: {
+    code: "INVALID_INPUT" | "NOT_ABSOLUTE" | "NOT_A_DIRECTORY" | "DANGEROUS_PATH" | "HOME_DIRECTORY" | "RESOLVE_FAILED";
+    message: string;
+  };
+}
+
+export type ValidateDroppedFolderResult = ValidateDroppedFolderSuccess | ValidateDroppedFolderFailure;
+
 export interface CodeBundleApi {
   chooseProjectFolder: () => Promise<string | null>;
   chooseOutputFile: () => Promise<string | null>;
@@ -243,6 +259,8 @@ export interface CodeBundleApi {
   getAppInfo: () => Promise<AppInfo>;
   scanForSecrets: (options: SecretScanOptions) => Promise<SecretScanResult>;
   generatePreview: (options: GeneratePreviewOptions) => Promise<GeneratePreviewResult>;
+  validateDroppedFolder: (path: string) => Promise<ValidateDroppedFolderResult>;
+  getPathForFile: (file: File) => string;
 }
 
 declare global {

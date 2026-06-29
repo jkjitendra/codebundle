@@ -28,7 +28,8 @@ import type {
   PreviewResult,
   RunExportResult,
   ScanProjectResult,
-  SecretScanResult
+  SecretScanResult,
+  ValidateDroppedFolderResult
 } from "./lib/types";
 
 const DEFAULT_MAX_FILE_SIZE_KB = 500;
@@ -44,6 +45,44 @@ interface ExportToastState {
   title: string;
   message?: string;
   outputFile?: string;
+}
+
+export type FolderDropResult = { success: true } | { success: false; message?: string };
+
+interface DroppedProjectFolderHandlerOptions {
+  validateDroppedFolder: (path: string) => Promise<ValidateDroppedFolderResult>;
+  confirmHomeDirectory: () => boolean;
+  setProjectFolder: (folder: string) => void;
+  resetProjectState: () => void;
+  scanProjectFolder: (folder: string, allowHomeDirectory?: boolean) => Promise<void>;
+}
+
+export async function handleDroppedProjectFolder(
+  droppedPath: string,
+  options: DroppedProjectFolderHandlerOptions
+): Promise<FolderDropResult> {
+  const result = await options.validateDroppedFolder(droppedPath);
+
+  if (!result.success) {
+    if (result.error.code !== "HOME_DIRECTORY") {
+      return { success: false, message: result.error.message };
+    }
+
+    if (!options.confirmHomeDirectory()) {
+      return { success: false };
+    }
+
+    const folderToScan = result.resolvedPath ?? droppedPath;
+    options.setProjectFolder(folderToScan);
+    options.resetProjectState();
+    await options.scanProjectFolder(folderToScan, true);
+    return { success: true };
+  }
+
+  options.setProjectFolder(result.resolvedPath);
+  options.resetProjectState();
+  await options.scanProjectFolder(result.resolvedPath);
+  return { success: true };
 }
 
 export default function App(): JSX.Element {
@@ -217,6 +256,10 @@ export default function App(): JSX.Element {
 
   function updateProjectFolder(value: string): void {
     setProjectFolder(value.length > 0 ? value : null);
+    resetProjectState();
+  }
+
+  function resetProjectState(): void {
     setScanResult(null);
     setPrepareResult(null);
     setExportResult(null);
@@ -227,6 +270,24 @@ export default function App(): JSX.Element {
     setSelection(clearSelection());
     setExpandedFolders(new Set());
     setWarnings([]);
+  }
+
+  async function handleFolderDropped(droppedPath: string): Promise<FolderDropResult> {
+    setError(null);
+    try {
+      return await handleDroppedProjectFolder(droppedPath, {
+        validateDroppedFolder: window.codeBundle.validateDroppedFolder,
+        confirmHomeDirectory: () =>
+          window.confirm("Scanning your home directory can include many personal files. Continue?"),
+        setProjectFolder,
+        resetProjectState,
+        scanProjectFolder
+      });
+    } catch (caughtError) {
+      const message = caughtError instanceof Error ? caughtError.message : "Could not validate the dropped folder.";
+      setError(message);
+      return { success: false, message };
+    }
   }
 
   async function chooseOutputFile(): Promise<void> {
@@ -257,8 +318,8 @@ export default function App(): JSX.Element {
     setConfigPreview(null);
   }
 
-  async function scanSelectedProject(allowHomeDirectory = false): Promise<void> {
-    if (!projectFolder) {
+  async function scanProjectFolder(folder: string, allowHomeDirectory = false): Promise<void> {
+    if (!folder) {
       return;
     }
 
@@ -268,7 +329,7 @@ export default function App(): JSX.Element {
 
     try {
       const result = await window.codeBundle.scanProject({
-        projectRoot: projectFolder,
+        projectRoot: folder,
         maxFileSizeKb,
         exclude: excludePatterns,
         respectGitIgnore,
@@ -290,7 +351,7 @@ export default function App(): JSX.Element {
       if (message.includes("HOME_DIRECTORY_REQUIRES_CONFIRMATION")) {
         const confirmed = window.confirm("Scanning your home directory can include many personal files. Continue?");
         if (confirmed) {
-          await scanSelectedProject(true);
+          await scanProjectFolder(folder, true);
           return;
         }
       } else {
@@ -299,6 +360,14 @@ export default function App(): JSX.Element {
     } finally {
       setIsScanning(false);
     }
+  }
+
+  async function scanSelectedProject(allowHomeDirectory = false): Promise<void> {
+    if (!projectFolder) {
+      return;
+    }
+
+    await scanProjectFolder(projectFolder, allowHomeDirectory);
   }
 
   function toggleExpanded(path: string): void {
@@ -676,8 +745,9 @@ export default function App(): JSX.Element {
                 projectFolder={projectFolder}
                 isScanning={isScanning}
                 onProjectFolderChange={updateProjectFolder}
-                onChooseProjectFolder={chooseProjectFolder}
+                onChooseProjectFolder={() => void chooseProjectFolder()}
                 onScanProject={() => void scanSelectedProject()}
+                onFolderDropped={(path) => handleFolderDropped(path)}
               />
             </section>
 
