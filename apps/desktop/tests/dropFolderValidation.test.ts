@@ -1,5 +1,6 @@
 import { describe, expect, it, vi, afterEach } from "vitest";
 import { homedir } from "node:os";
+import { join, parse } from "node:path";
 import { validateDroppedFolder } from "../src/main/dropFolderValidation";
 
 // ---------------------------------------------------------------------------
@@ -51,6 +52,9 @@ afterEach(() => {
   vi.resetModules();
   vi.restoreAllMocks();
 });
+
+const describeOnPosix = process.platform === "win32" ? describe.skip : describe;
+const describeOnWindows = process.platform === "win32" ? describe : describe.skip;
 
 // ---------------------------------------------------------------------------
 // Input validation
@@ -124,7 +128,7 @@ describe("validateDroppedFolder — relative path rejection", () => {
 // Dangerous path rejection
 // ---------------------------------------------------------------------------
 
-describe("validateDroppedFolder — dangerous path rejection", () => {
+describeOnPosix("validateDroppedFolder — POSIX dangerous path rejection", () => {
   it("rejects the filesystem root /", async () => {
     const result = await validateDroppedFolder("/");
     expect(result.success).toBe(false);
@@ -160,6 +164,56 @@ describe("validateDroppedFolder — dangerous path rejection", () => {
     mockFsSuccess(true, "/usr");
     const { validateDroppedFolder: validate } = await import("../src/main/dropFolderValidation");
     const result = await validate("/Users/user/projects/usr-link");
+    expect(result.success).toBe(false);
+    if (result.success) return;
+    expect(result.error.code).toBe("DANGEROUS_PATH");
+    expect(result.error.message).toBe("Cannot use a system-level directory as a project folder.");
+  });
+});
+
+describeOnWindows("validateDroppedFolder — Windows dangerous path rejection", () => {
+  it("rejects the current drive root", async () => {
+    const currentDriveRoot = parse(process.cwd()).root;
+    const result = await validateDroppedFolder(currentDriveRoot);
+    expect(result.success).toBe(false);
+    if (result.success) return;
+    expect(result.error.code).toBe("DANGEROUS_PATH");
+  });
+
+  it("rejects a non-C drive root", async () => {
+    const result = await validateDroppedFolder("D:\\");
+    expect(result.success).toBe(false);
+    if (result.success) return;
+    expect(result.error.code).toBe("DANGEROUS_PATH");
+  });
+
+  it("rejects C:\\Windows", async () => {
+    const result = await validateDroppedFolder("C:\\Windows");
+    expect(result.success).toBe(false);
+    if (result.success) return;
+    expect(result.error.code).toBe("DANGEROUS_PATH");
+  });
+
+  it("rejects C:\\Program Files", async () => {
+    const result = await validateDroppedFolder("C:\\Program Files");
+    expect(result.success).toBe(false);
+    if (result.success) return;
+    expect(result.error.code).toBe("DANGEROUS_PATH");
+  });
+
+  it("rejects C:\\Program Files (x86)", async () => {
+    const result = await validateDroppedFolder("C:\\Program Files (x86)");
+    expect(result.success).toBe(false);
+    if (result.success) return;
+    expect(result.error.code).toBe("DANGEROUS_PATH");
+  });
+
+  it("rejects a safe-looking path whose realpath resolves to the current drive root", async () => {
+    const currentDriveRoot = parse(process.cwd()).root;
+    mockFsSuccess(true, currentDriveRoot);
+    const { validateDroppedFolder: validate } = await import("../src/main/dropFolderValidation");
+    const safeLookingPath = join(currentDriveRoot, "Users", "user", "projects", "drive-root-link");
+    const result = await validate(safeLookingPath);
     expect(result.success).toBe(false);
     if (result.success) return;
     expect(result.error.code).toBe("DANGEROUS_PATH");

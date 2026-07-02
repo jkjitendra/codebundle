@@ -37,7 +37,7 @@ export function isDangerousProjectRoot(inputPath: string): boolean {
   }
 
   const parsed = parse(normalized);
-  return normalized === parsed.root && DANGEROUS_WINDOWS_ROOTS.has(parsed.root.toLowerCase());
+  return normalized === parsed.root;
 }
 
 export function isHomeDirectory(inputPath: string): boolean {
