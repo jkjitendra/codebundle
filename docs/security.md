@@ -35,6 +35,26 @@ Desktop preferences are stored locally under Electron's `userData` path. They ma
 
 Preferences do not store file contents, selected file contents, tokens, passwords, or API keys.
 
+## Recent Projects
+
+Recent projects are stored locally under Electron's `userData` path in `recent-projects.json`.
+
+Each recent-project entry stores only:
+
+- The project folder path.
+- The folder display name.
+- `addedAt` and `lastOpenedAt` timestamps.
+
+Recent projects do not store file contents, selected files, secrets, tokens, passwords, or API keys.
+
+The recent-project list is capped at 10 entries. A project is added only after a project scan succeeds. Choosing a folder, typing a path, selecting a recent project, or failing a drag-and-drop scan does not add a recent project.
+
+Stale recent-project paths are pruned only when the renderer explicitly loads the recent-project list through `getRecentProjects()`. There is no background scanning or automatic filesystem probing for recent projects.
+
+Selecting a recent project only populates the Project Folder input and resets the current scan state. It does not scan automatically.
+
+Logs must never include full absolute project paths. Recent-project log entries may use sanitized folder labels such as a basename, but they must not write complete paths.
+
 ## Default Excludes
 
 CodeBundle applies default excludes for common sensitive, generated, dependency, and binary paths, including:
