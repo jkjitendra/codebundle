@@ -5,11 +5,29 @@ import { prepareExportConfig } from "./configWriter";
 import { validateDroppedFolder } from "./dropFolderValidation";
 import { readPreferences, savePreferences } from "./preferences";
 import { generatePreview } from "./previewGenerator";
+import { addRecentProject, readRecentProjects, removeRecentProject, validateRecentProjects } from "./recentProjects";
 import { runExporter } from "./runExporter";
 import { scanProject } from "./scanFiles";
 import { scanFilesForSecrets } from "./secretScanner";
+import type { RecentProjectsResult } from "../shared/types";
 
 let currentExportController: AbortController | null = null;
+
+async function getStoredRecentProjectsResult(): Promise<RecentProjectsResult> {
+  try {
+    return { projects: await readRecentProjects(app.getPath("userData")) };
+  } catch {
+    return { projects: [] };
+  }
+}
+
+async function getValidatedRecentProjectsResult(): Promise<RecentProjectsResult> {
+  try {
+    return { projects: await validateRecentProjects(app.getPath("userData")) };
+  } catch {
+    return getStoredRecentProjectsResult();
+  }
+}
 
 export function registerIpcHandlers(): void {
   ipcMain.handle("codebundle:choose-project-folder", async () => {
@@ -138,4 +156,32 @@ export function registerIpcHandlers(): void {
   ipcMain.handle("codebundle:generate-preview", async (_event, options) => generatePreview(options));
 
   ipcMain.handle("codebundle:validate-dropped-folder", async (_event, path) => validateDroppedFolder(path));
+
+  ipcMain.handle("codebundle:get-recent-projects", async () => getValidatedRecentProjectsResult());
+
+  ipcMain.handle("codebundle:add-recent-project", async (_event, input: unknown) => {
+    const projectPath = typeof input === "string" ? input.trim() : "";
+    if (projectPath.length === 0 || !isAbsolute(projectPath)) {
+      return getStoredRecentProjectsResult();
+    }
+
+    try {
+      return { projects: await addRecentProject(app.getPath("userData"), projectPath) };
+    } catch {
+      return getStoredRecentProjectsResult();
+    }
+  });
+
+  ipcMain.handle("codebundle:remove-recent-project", async (_event, input: unknown) => {
+    const projectPath = typeof input === "string" ? input.trim() : "";
+    if (projectPath.length === 0 || !isAbsolute(projectPath)) {
+      return getStoredRecentProjectsResult();
+    }
+
+    try {
+      return { projects: await removeRecentProject(app.getPath("userData"), projectPath) };
+    } catch {
+      return getStoredRecentProjectsResult();
+    }
+  });
 }
