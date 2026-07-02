@@ -7,6 +7,7 @@ import type {
   GeneratePreviewOptions,
   GeneratePreviewResult,
   PrepareExportConfigResult,
+  RecentProjectsResult,
   RevealPathResult,
   RunExportResult,
   SavePreferencesResult,
@@ -38,6 +39,12 @@ const api: CodeBundleApi = {
     ipcRenderer.invoke("codebundle:generate-preview", options) as Promise<GeneratePreviewResult>,
   validateDroppedFolder: (path: string) =>
     ipcRenderer.invoke("codebundle:validate-dropped-folder", path) as Promise<ValidateDroppedFolderResult>,
+  getRecentProjects: () =>
+    ipcRenderer.invoke("codebundle:get-recent-projects") as Promise<RecentProjectsResult>,
+  addRecentProject: (path: string) =>
+    ipcRenderer.invoke("codebundle:add-recent-project", path) as Promise<RecentProjectsResult>,
+  removeRecentProject: (path: string) =>
+    ipcRenderer.invoke("codebundle:remove-recent-project", path) as Promise<RecentProjectsResult>,
   getPathForFile: (file: File) => webUtils.getPathForFile(file)
 };
 
