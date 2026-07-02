@@ -18,6 +18,8 @@ export type {
   PrepareExportConfigResult,
   PrepareExportConfigSuccess,
   PreviewResult,
+  RecentProject,
+  RecentProjectsResult,
   RevealPathFailure,
   RevealPathResult,
   RevealPathSuccess,
