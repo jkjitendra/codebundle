@@ -226,7 +226,10 @@ describe("recent projects", () => {
 
       await addRecentProject(userDataPath, projectPath);
 
-      await expect(readFile(getRecentProjectsPath(userDataPath), "utf8")).resolves.toContain(projectPath);
+      const rawRecentProjects = await readFile(getRecentProjectsPath(userDataPath), "utf8");
+      expect(JSON.parse(rawRecentProjects)).toEqual([
+        expect.objectContaining({ path: projectPath })
+      ]);
       await expect(access(`${getRecentProjectsPath(userDataPath)}.tmp`)).rejects.toThrow();
     });
   });
