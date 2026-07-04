@@ -130,6 +130,7 @@ jobs:
         uses: softprops/action-gh-release@v3
         with:
           fail_on_unmatched_files: true
+          overwrite_files: true
           files: |
             apps/desktop/release/*.dmg
             apps/desktop/release/*.zip
@@ -138,13 +139,33 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Upload Windows release artifacts
+      - name: Upload Windows installer
         if: runner.os == 'Windows'
         uses: softprops/action-gh-release@v3
         with:
           fail_on_unmatched_files: true
+          overwrite_files: true
+          files: apps/desktop/release/*Setup.exe
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Upload Windows portable
+        if: runner.os == 'Windows'
+        uses: softprops/action-gh-release@v3
+        with:
+          fail_on_unmatched_files: true
+          overwrite_files: true
+          files: apps/desktop/release/*Portable.exe
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Upload Windows update metadata
+        if: runner.os == 'Windows'
+        uses: softprops/action-gh-release@v3
+        with:
+          fail_on_unmatched_files: true
+          overwrite_files: true
           files: |
-            apps/desktop/release/*.exe
             apps/desktop/release/latest.yml
             apps/desktop/release/*.blockmap
         env:
@@ -155,6 +176,7 @@ jobs:
         uses: softprops/action-gh-release@v3
         with:
           fail_on_unmatched_files: true
+          overwrite_files: true
           files: |
             apps/desktop/release/*.AppImage
             apps/desktop/release/*.deb

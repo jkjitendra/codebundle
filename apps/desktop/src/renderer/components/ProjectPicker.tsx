@@ -1,14 +1,19 @@
 import { useCallback, useRef, useState } from "react";
+import type { RecentProject } from "../lib/types";
+import { RecentProjects } from "./RecentProjects";
 
 export type ProjectFolderDropResult = { success: true } | { success: false; message?: string };
 
 interface ProjectPickerProps {
   projectFolder: string | null;
   isScanning: boolean;
+  recentProjects: RecentProject[];
   onProjectFolderChange: (value: string) => void;
   onChooseProjectFolder: () => void;
   onScanProject: () => void;
   onFolderDropped: (path: string) => Promise<ProjectFolderDropResult>;
+  onSelectRecentProject: (path: string) => void;
+  onRemoveRecentProject: (path: string) => Promise<void> | void;
 }
 
 const folderIcon = new URL("../../../../../resources/icons/folder.svg", import.meta.url).href;
@@ -40,14 +45,21 @@ export function getDroppedFilePath(
 export function ProjectPicker({
   projectFolder,
   isScanning,
+  recentProjects,
   onProjectFolderChange,
   onChooseProjectFolder,
   onScanProject,
-  onFolderDropped
+  onFolderDropped,
+  onSelectRecentProject,
+  onRemoveRecentProject
 }: ProjectPickerProps): JSX.Element {
   const [isDragOver, setIsDragOver] = useState(false);
   const [dropErrorMessage, setDropErrorMessage] = useState<string | null>(null);
   const dragCounter = useRef(0);
+
+  function clearDropError(): void {
+    setDropErrorMessage(null);
+  }
 
   const handleDragEnter = useCallback((event: React.DragEvent<HTMLDivElement>) => {
     event.preventDefault();
@@ -101,6 +113,10 @@ export function ProjectPicker({
     }
 
     const result = await onFolderDropped(droppedPath);
+    if (result.success) {
+      clearDropError();
+      return;
+    }
     setDropErrorMessage(getDropErrorMessage(result));
   }, [onFolderDropped]);
 
@@ -143,12 +159,22 @@ export function ProjectPicker({
                 id="project-folder-input"
                 type="text"
                 value={projectFolder ?? ""}
-                onChange={(event) => onProjectFolderChange(event.target.value)}
+                onChange={(event) => {
+                  clearDropError();
+                  onProjectFolderChange(event.target.value);
+                }}
                 placeholder="Paste a path or drag a folder here"
                 style={styles.pathInput}
                 aria-label="Project folder path"
               />
-              <button type="button" style={styles.button} onClick={onChooseProjectFolder}>
+              <button
+                type="button"
+                style={styles.button}
+                onClick={() => {
+                  clearDropError();
+                  onChooseProjectFolder();
+                }}
+              >
                 Choose Folder
               </button>
             </div>
@@ -168,12 +194,24 @@ export function ProjectPicker({
       <button
         type="button"
         style={styles.scanButton}
-        onClick={onScanProject}
+        onClick={() => {
+          clearDropError();
+          onScanProject();
+        }}
         disabled={!projectFolder || isScanning}
       >
         {isScanning ? "Scanning..." : "Scan Project"}
       </button>
       <p style={styles.copy}>Select a folder to scan for files and folders.</p>
+
+      <RecentProjects
+        projects={recentProjects}
+        onSelect={(path) => {
+          clearDropError();
+          onSelectRecentProject(path);
+        }}
+        onRemove={onRemoveRecentProject}
+      />
     </section>
   );
 }

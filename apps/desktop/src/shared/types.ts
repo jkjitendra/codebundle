@@ -245,6 +245,17 @@ export interface ValidateDroppedFolderFailure {
 
 export type ValidateDroppedFolderResult = ValidateDroppedFolderSuccess | ValidateDroppedFolderFailure;
 
+export interface RecentProject {
+  path: string;
+  name: string;
+  addedAt: number;
+  lastOpenedAt: number;
+}
+
+export interface RecentProjectsResult {
+  projects: RecentProject[];
+}
+
 export interface CodeBundleApi {
   chooseProjectFolder: () => Promise<string | null>;
   chooseOutputFile: () => Promise<string | null>;
@@ -260,6 +271,9 @@ export interface CodeBundleApi {
   scanForSecrets: (options: SecretScanOptions) => Promise<SecretScanResult>;
   generatePreview: (options: GeneratePreviewOptions) => Promise<GeneratePreviewResult>;
   validateDroppedFolder: (path: string) => Promise<ValidateDroppedFolderResult>;
+  getRecentProjects: () => Promise<RecentProjectsResult>;
+  addRecentProject: (path: string) => Promise<RecentProjectsResult>;
+  removeRecentProject: (path: string) => Promise<RecentProjectsResult>;
   getPathForFile: (file: File) => string;
 }
 

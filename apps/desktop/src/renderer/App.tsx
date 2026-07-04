@@ -26,6 +26,8 @@ import type {
   FileTreeNode,
   PrepareExportConfigResult,
   PreviewResult,
+  RecentProject,
+  RecentProjectsResult,
   RunExportResult,
   ScanProjectResult,
   SecretScanResult,
@@ -85,8 +87,29 @@ export async function handleDroppedProjectFolder(
   return { success: true };
 }
 
+interface RecentProjectSelectionOptions {
+  setProjectFolder: (folder: string) => void;
+  resetProjectState: () => void;
+}
+
+export function selectRecentProjectPath(path: string, options: RecentProjectSelectionOptions): void {
+  options.setProjectFolder(path);
+  options.resetProjectState();
+}
+
+interface RecentProjectRemovalOptions {
+  removeRecentProject: (path: string) => Promise<RecentProjectsResult>;
+  setRecentProjects: (projects: RecentProject[]) => void;
+}
+
+export async function removeRecentProjectPath(path: string, options: RecentProjectRemovalOptions): Promise<void> {
+  const result = await options.removeRecentProject(path);
+  options.setRecentProjects(result.projects);
+}
+
 export default function App(): JSX.Element {
   const [projectFolder, setProjectFolder] = useState<string | null>(null);
+  const [recentProjects, setRecentProjects] = useState<RecentProject[]>([]);
   const [outputFile, setOutputFile] = useState<string | null>(null);
   const [defaultExcludes, setDefaultExcludes] = useState<string[]>([]);
   const [excludeText, setExcludeText] = useState("");
@@ -177,15 +200,17 @@ export default function App(): JSX.Element {
 
     async function loadBridgeData(): Promise<void> {
       try {
-        const [rules, info, preferences] = await Promise.all([
+        const [rules, info, preferences, recent] = await Promise.all([
           window.codeBundle.getDefaultExcludes(),
           window.codeBundle.getAppInfo(),
-          window.codeBundle.getPreferences()
+          window.codeBundle.getPreferences(),
+          window.codeBundle.getRecentProjects()
         ]);
 
         if (isMounted) {
           setDefaultExcludes(rules);
           setAppInfo(info);
+          setRecentProjects(recent.projects);
           setProjectFolder(preferences.recentProjectFolder);
           setOutputFile(preferences.recentOutputFile);
           setMaxFileSizeKb(preferences.maxFileSizeKb);
@@ -346,6 +371,13 @@ export default function App(): JSX.Element {
       setSelection(clearSelection());
       setExpandedFolders(new Set(result.nodes.filter((node) => node.type === "directory").map((node) => node.path)));
       setWarnings(result.warnings ?? []);
+
+      try {
+        const recentResult = await window.codeBundle.addRecentProject(folder);
+        setRecentProjects(recentResult.projects);
+      } catch {
+        // Recent projects are optional UI metadata; keep a successful scan successful.
+      }
     } catch (caughtError) {
       const message = caughtError instanceof Error ? caughtError.message : "Unable to scan project folder.";
       if (message.includes("HOME_DIRECTORY_REQUIRES_CONFIRMATION")) {
@@ -368,6 +400,17 @@ export default function App(): JSX.Element {
     }
 
     await scanProjectFolder(projectFolder, allowHomeDirectory);
+  }
+
+  function selectRecentProject(path: string): void {
+    selectRecentProjectPath(path, { setProjectFolder, resetProjectState });
+  }
+
+  async function removeRecentProject(path: string): Promise<void> {
+    await removeRecentProjectPath(path, {
+      removeRecentProject: window.codeBundle.removeRecentProject,
+      setRecentProjects
+    });
   }
 
   function toggleExpanded(path: string): void {
@@ -744,10 +787,13 @@ export default function App(): JSX.Element {
               <ProjectPicker
                 projectFolder={projectFolder}
                 isScanning={isScanning}
+                recentProjects={recentProjects}
                 onProjectFolderChange={updateProjectFolder}
                 onChooseProjectFolder={() => void chooseProjectFolder()}
                 onScanProject={() => void scanSelectedProject()}
                 onFolderDropped={(path) => handleFolderDropped(path)}
+                onSelectRecentProject={selectRecentProject}
+                onRemoveRecentProject={(path) => void removeRecentProject(path)}
               />
             </section>
 
