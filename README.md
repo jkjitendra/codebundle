@@ -11,7 +11,7 @@ It has two local execution paths:
 
 With the desktop app, you can scan local projects, select files and folders, estimate export size and tokens, preview the export, get local secret warnings before preview/export, drag and drop a project folder, reuse recent projects, and export to Markdown or text.
 
-CodeBundle is local-first. It does not upload project files, does not require cloud services for export, and does not store secrets in app preferences or recent-project metadata.
+CodeBundle is local-first. It does not upload project files, does not require cloud services for export, and does not store secrets in app preferences, recent-project metadata, or saved-profile metadata.
 The desktop app calls the Python CLI on the same machine.
 
 Status: MVP development build with release packaging foundation. Development mode requires Node/npm, Python 3.10+, and access to `exporter-python`. Public desktop builds include the Electron runtime and a bundled exporter sidecar so installed users do not manually install Python, Node, npm, Python packages, or project dependencies.
@@ -66,6 +66,7 @@ Development mode requires Python 3.10+. You can set `CODEBUNDLE_PYTHON_PATH` to 
 - Local secret scanner before preview and export.
 - Drag-and-drop project folder input with main-process validation.
 - Recent Projects dropdown for successfully scanned folders.
+- Saved export profiles for reusable project/export selections.
 - Local Python sidecar/exporter execution.
 
 ## Python CLI Usage
@@ -114,6 +115,7 @@ codebundle/
 - Export preview is generated locally, truncated, not persisted, and not written to the output file.
 - Drag-and-drop folder paths are validated in the Electron main process.
 - Recent projects are local metadata only. They store folder paths, folder display names, and timestamps, not file contents, selected files, secrets, tokens, or API keys.
+- Saved export profiles are local configuration metadata only. They store profile names, project/output paths, selected relative paths, exclude text, and export options, never file contents, preview content, exported output, secret values, tokens, passwords, or API keys.
 - Default excludes skip `.env`, keys, credentials, `.git`, `node_modules`, build outputs, lock files, and common binary formats.
 - Dangerous roots such as `/`, `/etc`, `/usr`, `/System`, `/Library`, and Windows system roots are blocked.
 - Path traversal attempts are rejected.
