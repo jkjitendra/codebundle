@@ -4,12 +4,14 @@ import type {
   CodeBundleApi,
   CodeBundleExportConfig,
   CodeBundlePreferences,
+  ExportProfilesResult,
   GeneratePreviewOptions,
   GeneratePreviewResult,
   PrepareExportConfigResult,
   RecentProjectsResult,
   RevealPathResult,
   RunExportResult,
+  SaveExportProfileInput,
   SavePreferencesResult,
   ScanProjectOptions,
   ScanProjectResult,
@@ -45,6 +47,14 @@ const api: CodeBundleApi = {
     ipcRenderer.invoke("codebundle:add-recent-project", path) as Promise<RecentProjectsResult>,
   removeRecentProject: (path: string) =>
     ipcRenderer.invoke("codebundle:remove-recent-project", path) as Promise<RecentProjectsResult>,
+  getExportProfiles: () =>
+    ipcRenderer.invoke("codebundle:get-export-profiles") as Promise<ExportProfilesResult>,
+  saveExportProfile: (profile: SaveExportProfileInput) =>
+    ipcRenderer.invoke("codebundle:save-export-profile", profile) as Promise<ExportProfilesResult>,
+  deleteExportProfile: (id: string) =>
+    ipcRenderer.invoke("codebundle:delete-export-profile", id) as Promise<ExportProfilesResult>,
+  markExportProfileUsed: (id: string) =>
+    ipcRenderer.invoke("codebundle:mark-export-profile-used", id) as Promise<ExportProfilesResult>,
   getPathForFile: (file: File) => webUtils.getPathForFile(file)
 };
 
