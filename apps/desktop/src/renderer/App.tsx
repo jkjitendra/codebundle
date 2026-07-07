@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { ExcludeRulesEditor } from "./components/ExcludeRulesEditor";
 import { ExportControls } from "./components/ExportControls";
 import { ExportPreviewModal } from "./components/ExportPreviewModal";
@@ -7,7 +7,9 @@ import { FileTree } from "./components/FileTree";
 import { InlineInfo } from "./components/InlineInfo";
 import { LocalFirstInfo } from "./components/LocalFirstInfo";
 import { ProjectPicker } from "./components/ProjectPicker";
+import { SavedExportProfiles } from "./components/SavedExportProfiles";
 import { SecretScanWarning } from "./components/SecretScanWarning";
+import { restoreProfileSelection } from "./lib/profileSelection";
 import {
   buildConfigPreview,
   clearSelection,
@@ -29,6 +31,7 @@ import type {
   RecentProject,
   RecentProjectsResult,
   RunExportResult,
+  SavedExportProfile,
   ScanProjectResult,
   SecretScanResult,
   ValidateDroppedFolderResult
@@ -110,6 +113,7 @@ export async function removeRecentProjectPath(path: string, options: RecentProje
 export default function App(): JSX.Element {
   const [projectFolder, setProjectFolder] = useState<string | null>(null);
   const [recentProjects, setRecentProjects] = useState<RecentProject[]>([]);
+  const [exportProfiles, setExportProfiles] = useState<SavedExportProfile[]>([]);
   const [outputFile, setOutputFile] = useState<string | null>(null);
   const [defaultExcludes, setDefaultExcludes] = useState<string[]>([]);
   const [excludeText, setExcludeText] = useState("");
@@ -144,6 +148,12 @@ export default function App(): JSX.Element {
   const [isGeneratingPreview, setIsGeneratingPreview] = useState(false);
   const [previewResult, setPreviewResult] = useState<PreviewResult | null>(null);
   const [showPreviewModal, setShowPreviewModal] = useState(false);
+  const pendingProfileSelectionRef = useRef<{
+    profileId: string;
+    projectRoot: string;
+    files: string[];
+    folders: string[];
+  } | null>(null);
 
   const tree = useMemo(() => buildFileTree(scanResult?.nodes ?? []), [scanResult]);
   const treeIndex = useMemo(() => buildTreeIndex(tree), [tree]);
@@ -200,17 +210,19 @@ export default function App(): JSX.Element {
 
     async function loadBridgeData(): Promise<void> {
       try {
-        const [rules, info, preferences, recent] = await Promise.all([
+        const [rules, info, preferences, recent, profiles] = await Promise.all([
           window.codeBundle.getDefaultExcludes(),
           window.codeBundle.getAppInfo(),
           window.codeBundle.getPreferences(),
-          window.codeBundle.getRecentProjects()
+          window.codeBundle.getRecentProjects(),
+          window.codeBundle.getExportProfiles()
         ]);
 
         if (isMounted) {
           setDefaultExcludes(rules);
           setAppInfo(info);
           setRecentProjects(recent.projects);
+          setExportProfiles(profiles.profiles);
           setProjectFolder(preferences.recentProjectFolder);
           setOutputFile(preferences.recentOutputFile);
           setMaxFileSizeKb(preferences.maxFileSizeKb);
@@ -264,15 +276,7 @@ export default function App(): JSX.Element {
       const selectedFolder = await window.codeBundle.chooseProjectFolder();
       if (selectedFolder) {
         setProjectFolder(selectedFolder);
-        setScanResult(null);
-        setPrepareResult(null);
-        setExportResult(null);
-        setRevealError(null);
-        setCopyStatus(null);
-        setToast(null);
-        setConfigPreview(null);
-        setSelection(clearSelection());
-        setExpandedFolders(new Set());
+        resetProjectState();
       }
     } catch (caughtError) {
       setError(caughtError instanceof Error ? caughtError.message : "Unable to choose a project folder.");
@@ -285,6 +289,7 @@ export default function App(): JSX.Element {
   }
 
   function resetProjectState(): void {
+    pendingProfileSelectionRef.current = null;
     setScanResult(null);
     setPrepareResult(null);
     setExportResult(null);
@@ -368,9 +373,42 @@ export default function App(): JSX.Element {
       setCopyStatus(null);
       setToast(null);
       setConfigPreview(null);
-      setSelection(clearSelection());
       setExpandedFolders(new Set(result.nodes.filter((node) => node.type === "directory").map((node) => node.path)));
       setWarnings(result.warnings ?? []);
+
+      // Restore pending profile selection using a local tree/index
+      // to avoid relying on stale React memo state.
+      const pending = pendingProfileSelectionRef.current;
+      if (pending && pending.projectRoot === folder) {
+        const nextTree = buildFileTree(result.nodes);
+        const nextTreeIndex = buildTreeIndex(nextTree);
+        const restored = restoreProfileSelection({
+          treeIndex: nextTreeIndex,
+          files: pending.files,
+          folders: pending.folders
+        });
+        const restoredPaths = [...restored.selectedFiles, ...restored.selectedFolders];
+        const newSelection = selectPaths(restoredPaths, clearSelection(), nextTreeIndex);
+        setSelection(newSelection);
+        pendingProfileSelectionRef.current = null;
+
+        if (restored.missingCount > 0) {
+          setToast({
+            kind: "info",
+            title: "Profile selections restored",
+            message: `Restored ${restored.restoredCount} saved paths. ${restored.missingCount} saved paths were not found.`
+          });
+        } else if (restored.restoredCount > 0) {
+          setToast({
+            kind: "success",
+            title: "Profile selections restored",
+            message: `Restored ${restored.restoredCount} saved paths.`
+          });
+        }
+      } else {
+        pendingProfileSelectionRef.current = null;
+        setSelection(clearSelection());
+      }
 
       try {
         const recentResult = await window.codeBundle.addRecentProject(folder);
@@ -411,6 +449,89 @@ export default function App(): JSX.Element {
       removeRecentProject: window.codeBundle.removeRecentProject,
       setRecentProjects
     });
+  }
+
+  const canSaveProfile = Boolean(
+    projectFolder && scanResult && selectionSummary.estimatedExportFileCount > 0
+  );
+
+  async function handleSaveProfile(name: string): Promise<void> {
+    if (!projectFolder || !scanResult) {
+      return;
+    }
+
+    // Use buildConfigPreview to get the canonical files/folders from the selection model
+    const preview = buildConfigPreview({
+      projectRoot: projectFolder,
+      outputFile: outputFile ?? "placeholder.md",
+      format: outputFormat,
+      selection,
+      exclude: configExcludePatterns,
+      maxFileSizeKb,
+      respectGitIgnore,
+      followSymlinks
+    });
+
+    try {
+      const result = await window.codeBundle.saveExportProfile({
+        name,
+        projectRoot: projectFolder,
+        outputFile,
+        format: outputFormat,
+        files: preview.files,
+        folders: preview.folders,
+        excludeText,
+        maxFileSizeKb,
+        respectGitIgnore,
+        followSymlinks
+      });
+      setExportProfiles(result.profiles);
+      setToast({ kind: "success", title: "Profile saved", message: `Saved profile "${name}".` });
+    } catch (caughtError) {
+      setToast({
+        kind: "error",
+        title: "Profile save failed",
+        message: caughtError instanceof Error ? caughtError.message : "Could not save export profile."
+      });
+    }
+  }
+
+  function handleLoadProfile(profile: SavedExportProfile): void {
+    setProjectFolder(profile.projectRoot);
+    setOutputFile(profile.outputFile);
+    setMaxFileSizeKb(profile.maxFileSizeKb);
+    setRespectGitIgnore(profile.respectGitIgnore);
+    setFollowSymlinks(profile.followSymlinks);
+    setExcludeText(profile.excludeText);
+    resetProjectState();
+    pendingProfileSelectionRef.current = {
+      profileId: profile.id,
+      projectRoot: profile.projectRoot,
+      files: profile.files,
+      folders: profile.folders
+    };
+    setToast({
+      kind: "info",
+      title: "Profile loaded",
+      message: "Profile loaded. Click Scan Project to restore saved file selections."
+    });
+
+    // Mark as used — non-blocking, non-critical
+    void window.codeBundle.markExportProfileUsed(profile.id)
+      .then((result) => setExportProfiles(result.profiles))
+      .catch(() => { /* optional metadata, ignore failures */ });
+  }
+
+  async function handleDeleteProfile(id: string): Promise<void> {
+    try {
+      const result = await window.codeBundle.deleteExportProfile(id);
+      setExportProfiles(result.profiles);
+      if (pendingProfileSelectionRef.current?.profileId === id) {
+        pendingProfileSelectionRef.current = null;
+      }
+    } catch {
+      // Deletion failure is non-critical
+    }
   }
 
   function toggleExpanded(path: string): void {
@@ -918,6 +1039,16 @@ export default function App(): JSX.Element {
                   setConfigPreview(null);
                   setExcludeText(value);
                 }}
+              />
+            </section>
+
+            <section style={styles.card}>
+              <SavedExportProfiles
+                profiles={exportProfiles}
+                canSave={canSaveProfile}
+                onSave={(name) => void handleSaveProfile(name)}
+                onLoad={handleLoadProfile}
+                onDelete={(id) => void handleDeleteProfile(id)}
               />
             </section>
           </div>
