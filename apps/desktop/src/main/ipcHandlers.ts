@@ -3,13 +3,14 @@ import { isAbsolute } from "node:path";
 import { DEFAULT_EXCLUDES } from "./defaultRules";
 import { prepareExportConfig } from "./configWriter";
 import { validateDroppedFolder } from "./dropFolderValidation";
+import { deleteExportProfile, markExportProfileUsed, readExportProfiles, saveExportProfile } from "./exportProfiles";
 import { readPreferences, savePreferences } from "./preferences";
 import { generatePreview } from "./previewGenerator";
 import { addRecentProject, readRecentProjects, removeRecentProject, validateRecentProjects } from "./recentProjects";
 import { runExporter } from "./runExporter";
 import { scanProject } from "./scanFiles";
 import { scanFilesForSecrets } from "./secretScanner";
-import type { RecentProjectsResult } from "../shared/types";
+import type { ExportProfilesResult, RecentProjectsResult } from "../shared/types";
 
 let currentExportController: AbortController | null = null;
 
@@ -26,6 +27,14 @@ async function getValidatedRecentProjectsResult(): Promise<RecentProjectsResult>
     return { projects: await validateRecentProjects(app.getPath("userData")) };
   } catch {
     return getStoredRecentProjectsResult();
+  }
+}
+
+async function getStoredExportProfilesResult(): Promise<ExportProfilesResult> {
+  try {
+    return { profiles: await readExportProfiles(app.getPath("userData")) };
+  } catch {
+    return { profiles: [] };
   }
 }
 
@@ -182,6 +191,38 @@ export function registerIpcHandlers(): void {
       return { projects: await removeRecentProject(app.getPath("userData"), projectPath) };
     } catch {
       return getStoredRecentProjectsResult();
+    }
+  });
+
+  ipcMain.handle("codebundle:get-export-profiles", async () => getStoredExportProfilesResult());
+
+  ipcMain.handle("codebundle:save-export-profile", async (_event, input: unknown) => {
+    return { profiles: await saveExportProfile(app.getPath("userData"), input) };
+  });
+
+  ipcMain.handle("codebundle:delete-export-profile", async (_event, input: unknown) => {
+    const id = typeof input === "string" ? input.trim() : "";
+    if (id.length === 0) {
+      return getStoredExportProfilesResult();
+    }
+
+    try {
+      return { profiles: await deleteExportProfile(app.getPath("userData"), id) };
+    } catch {
+      return getStoredExportProfilesResult();
+    }
+  });
+
+  ipcMain.handle("codebundle:mark-export-profile-used", async (_event, input: unknown) => {
+    const id = typeof input === "string" ? input.trim() : "";
+    if (id.length === 0) {
+      return getStoredExportProfilesResult();
+    }
+
+    try {
+      return { profiles: await markExportProfileUsed(app.getPath("userData"), id) };
+    } catch {
+      return getStoredExportProfilesResult();
     }
   });
 }

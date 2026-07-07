@@ -256,6 +256,41 @@ export interface RecentProjectsResult {
   projects: RecentProject[];
 }
 
+export interface SavedExportProfile {
+  id: string;
+  name: string;
+  projectRoot: string;
+  outputFile: string | null;
+  format: "markdown" | "text";
+  files: string[];
+  folders: string[];
+  excludeText: string;
+  maxFileSizeKb: number;
+  respectGitIgnore: boolean;
+  followSymlinks: boolean;
+  createdAt: number;
+  updatedAt: number;
+  lastUsedAt?: number;
+}
+
+export interface SaveExportProfileInput {
+  id?: string;
+  name: string;
+  projectRoot: string;
+  outputFile: string | null;
+  format: "markdown" | "text";
+  files: string[];
+  folders: string[];
+  excludeText: string;
+  maxFileSizeKb: number;
+  respectGitIgnore: boolean;
+  followSymlinks: boolean;
+}
+
+export interface ExportProfilesResult {
+  profiles: SavedExportProfile[];
+}
+
 export interface CodeBundleApi {
   chooseProjectFolder: () => Promise<string | null>;
   chooseOutputFile: () => Promise<string | null>;
@@ -274,6 +309,10 @@ export interface CodeBundleApi {
   getRecentProjects: () => Promise<RecentProjectsResult>;
   addRecentProject: (path: string) => Promise<RecentProjectsResult>;
   removeRecentProject: (path: string) => Promise<RecentProjectsResult>;
+  getExportProfiles: () => Promise<ExportProfilesResult>;
+  saveExportProfile: (profile: SaveExportProfileInput) => Promise<ExportProfilesResult>;
+  deleteExportProfile: (id: string) => Promise<ExportProfilesResult>;
+  markExportProfileUsed: (id: string) => Promise<ExportProfilesResult>;
   getPathForFile: (file: File) => string;
 }
 

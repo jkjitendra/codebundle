@@ -110,8 +110,10 @@ https://github.com/jkjitendra/codebundle/releases/latest
 6. Click `Run Export`.
 7. Review exported/skipped counts.
 8. Click `Reveal Output` to locate the generated file.
+9. Optionally save an export profile for reuse.
+10. Load a saved profile to restore project, output, options, and file selections.
 
-The app persists recent project/output paths and basic preferences under Electron `userData`.
+The app persists recent project/output paths, basic preferences, and saved export profiles under Electron `userData`. Saved profiles store configuration only, never file contents.
 
 ## Runtime Model
 

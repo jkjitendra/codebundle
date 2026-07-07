@@ -55,6 +55,38 @@ Selecting a recent project only populates the Project Folder input and resets th
 
 Logs must never include full absolute project paths. Recent-project log entries may use sanitized folder labels such as a basename, but they must not write complete paths.
 
+## Saved Export Profiles
+
+Saved export profiles are stored locally under Electron's `userData` path in `export-profiles.json`.
+
+Each saved profile stores:
+
+- A profile name.
+- The project root path.
+- The output file path (optional, may be null).
+- The output format (`markdown` or `text`).
+- Selected file and folder relative paths.
+- Custom exclude text.
+- Max file size, `.gitignore`, and symlink preferences.
+- `createdAt`, `updatedAt`, and optional `lastUsedAt` timestamps.
+
+Saved export profiles do not store file contents, preview content, exported output, secret values, tokens, passwords, or API keys.
+
+The saved profile list is capped at 20 entries. Profiles are created only through an explicit user action (Save Current).
+
+Loading a profile populates the project folder, output file, export options, and exclude text. It does not scan automatically. After a manual scan, saved file/folder selections are restored only if the paths still exist in the scan tree. Missing paths are skipped with a warning.
+
+The main process validates all profile input:
+
+- Profile names are trimmed and capped at 80 characters.
+- `projectRoot` must be an absolute path.
+- `outputFile` must be null or an absolute path.
+- Selected file/folder paths must be relative and must not escape `projectRoot`.
+- Total selected paths are capped at 5,000.
+- Timestamps and IDs are controlled by the main process, not by the renderer.
+
+Logs use sanitized folder basenames, not full absolute paths.
+
 ## Default Excludes
 
 CodeBundle applies default excludes for common sensitive, generated, dependency, and binary paths, including:
