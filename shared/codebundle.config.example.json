@@ -27,5 +27,13 @@
   "maxFileSizeKb": 500,
   "skipBinaryFiles": true,
   "respectGitIgnore": true,
-  "followSymlinks": false
+  "followSymlinks": false,
+  "git": {
+    "isGitRepository": true,
+    "gitAvailable": true,
+    "branch": "main",
+    "shortCommit": "abc1234",
+    "isDetachedHead": false,
+    "hasTrackedChanges": false
+  }
 }
