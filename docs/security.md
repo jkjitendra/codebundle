@@ -218,3 +218,32 @@ CodeBundle supports dragging a folder onto the Project Folder input to set the p
 - **Inline invalid-drop feedback.** Validation failures are returned to the Project Folder drop zone and shown inline as red drop-zone feedback.
 - **No file content read.** Path validation reads only directory metadata (`stat`). No file content is accessed during drop validation.
 - **Error messages are safe.** Error responses to the renderer contain only short fixed-text error codes and pre-written messages. Filesystem error details (ENOENT stack traces, etc.) are not forwarded to the renderer.
+
+## Git Metadata
+
+After a successful scan, CodeBundle reads basic Git context for the scanned project using the local `git` executable.
+
+### What is collected
+
+- Current branch name (or detached HEAD state).
+- Short and full commit hash.
+- Whether tracked files have uncommitted changes (`git status --porcelain=v1 --untracked-files=no`).
+
+### What is not collected
+
+- Remote URLs.
+- Commit history, diff content, or blame data.
+- Any credentials, tokens, or SSH keys.
+- Untracked file content or names.
+
+### Security design
+
+- Git metadata is read locally through the `git` executable when available. No network calls are made.
+- CodeBundle does not contact Git hosting providers (GitHub, GitLab, Bitbucket, etc.).
+- Git commands use argument arrays (`child_process.execFile`), never shell command strings.
+- No branch switching, staging, or committing is performed.
+- Each Git command has a strict 2-second timeout. Stdout is capped. All failures return a safe fallback result — Git failures never block scanning or export.
+- Git detection runs entirely in the Electron main process. The renderer never executes Git.
+- The Python exporter does not run Git. It only formats metadata already provided in the export config.
+- If Git is not installed or the project is not a Git repository, the scan still succeeds. The UI badge reflects the unavailable or non-repo state.
+- Git metadata is included in the export config (written to the OS temp directory) only when it was successfully detected. It follows the same temp file lifecycle as other config data.
