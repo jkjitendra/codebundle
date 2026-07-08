@@ -14,6 +14,7 @@ export type {
   GeneratePreviewOptions,
   GeneratePreviewResult,
   GeneratePreviewSuccess,
+  GitProjectInfo,
   PreparedExportSummary,
   PrepareExportConfigFailure,
   PrepareExportConfigResult,

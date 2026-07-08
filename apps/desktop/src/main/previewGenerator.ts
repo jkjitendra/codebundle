@@ -1,6 +1,6 @@
 import { readFile, readdir, lstat, stat, realpath } from "node:fs/promises";
 import { isAbsolute, join, relative, resolve } from "node:path";
-import type { CodeBundleExportConfig, GeneratePreviewResult, PreviewResult } from "../shared/types";
+import type { CodeBundleExportConfig, GeneratePreviewResult, GitProjectInfo, PreviewResult } from "../shared/types";
 import { assertSafeProjectRoot, isPathInside } from "./pathSecurity";
 
 const DEFAULT_MAX_PREVIEW_LINES = 500;
@@ -146,6 +146,7 @@ export async function generatePreview(input: unknown, deps: PreviewDependencies 
       builder.appendLine("");
       builder.appendLine(`Total Files: ${entries.length}`);
       builder.appendLine("");
+      appendGitSectionMarkdown(builder, config);
       builder.appendLine("---");
       builder.appendLine("");
     } else {
@@ -155,9 +156,11 @@ export async function generatePreview(input: unknown, deps: PreviewDependencies 
       builder.appendLine("");
       builder.appendLine(`Total Files: ${entries.length}`);
       builder.appendLine("");
+      appendGitSectionText(builder, config);
       builder.appendLine("---");
       builder.appendLine("");
     }
+
 
     for (const entry of entries) {
       // Stop reading files if already truncated
@@ -604,6 +607,88 @@ async function isProbablyBinary(absolutePath: string): Promise<boolean> {
     }
   }
   return controlCount / sample.length > 0.3;
+}
+
+// ---------------------------------------------------------------------------
+// Git metadata section helpers
+// ---------------------------------------------------------------------------
+
+/**
+ * Returns the branch label for display — "detached HEAD" for detached state,
+ * the branch name otherwise, or undefined if not available.
+ */
+function formatGitBranchLabel(git: GitProjectInfo): string | undefined {
+  if (git.isDetachedHead) {
+    return "detached HEAD";
+  }
+  return git.branch;
+}
+
+/**
+ * Returns the working tree status label — "modified" or "clean", or undefined
+ * if hasTrackedChanges is not available.
+ */
+function formatGitWorkingTree(git: GitProjectInfo): string | undefined {
+  if (typeof git.hasTrackedChanges !== "boolean") {
+    return undefined;
+  }
+  return git.hasTrackedChanges ? "modified" : "clean";
+}
+
+/**
+ * Append the Git metadata block in Markdown format to the builder.
+ * Only appended when git.isGitRepository is true.
+ */
+function appendGitSectionMarkdown(builder: PreviewBuilder, config: CodeBundleExportConfig): void {
+  const git = config.git;
+  if (!git?.isGitRepository) {
+    return;
+  }
+
+  builder.appendLine("## Git");
+  builder.appendLine("");
+
+  const branchLabel = formatGitBranchLabel(git);
+  if (branchLabel) {
+    builder.appendLine(`- Branch: ${branchLabel}`);
+  }
+  if (git.shortCommit) {
+    builder.appendLine(`- Commit: ${git.shortCommit}`);
+  }
+  const workingTree = formatGitWorkingTree(git);
+  if (workingTree) {
+    builder.appendLine(`- Working tree: ${workingTree}`);
+  }
+
+  builder.appendLine("");
+}
+
+/**
+ * Append the Git metadata block in plain text format to the builder.
+ * Only appended when git.isGitRepository is true.
+ */
+function appendGitSectionText(builder: PreviewBuilder, config: CodeBundleExportConfig): void {
+  const git = config.git;
+  if (!git?.isGitRepository) {
+    return;
+  }
+
+  builder.appendLine("Git");
+  builder.appendLine("");
+
+  const branchLabel = formatGitBranchLabel(git);
+  if (branchLabel) {
+    builder.appendLine(`Branch: ${branchLabel}`);
+  }
+  if (git.shortCommit) {
+    builder.appendLine(`Commit: ${git.shortCommit}`);
+  }
+  const workingTree = formatGitWorkingTree(git);
+  if (workingTree) {
+    builder.appendLine(`Working tree: ${workingTree}`);
+  }
+
+  builder.appendLine("");
 }
 
 function normalizeRelativePath(value: string): string {

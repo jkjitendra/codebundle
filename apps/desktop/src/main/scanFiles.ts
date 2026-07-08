@@ -1,9 +1,10 @@
 import { lstat, readdir, readFile, realpath, stat } from "node:fs/promises";
 import { basename, extname, join, relative } from "node:path";
 import type { Dirent } from "node:fs";
-import type { ScanNode, ScanProjectOptions, ScanProjectResult, ScanSummary } from "../shared/types";
+import type { GitProjectInfo, ScanNode, ScanProjectOptions, ScanProjectResult, ScanSummary } from "../shared/types";
 import { DEFAULT_EXCLUDES } from "./defaultRules";
 import { assertSafeProjectRoot, isPathInside } from "./pathSecurity";
+import { detectGitProjectInfo } from "./gitInfo";
 
 const SAMPLE_SIZE = 8192;
 
@@ -52,10 +53,27 @@ export async function scanProject(options: ScanProjectOptions): Promise<ScanProj
   await scanDirectory(context, projectRoot);
   context.nodes.sort(compareNodes);
 
+  // Git detection: non-blocking — scan result is always returned even if this fails.
+  let git: GitProjectInfo | undefined;
+  const warnings: string[] = [];
+  try {
+    git = await detectGitProjectInfo(projectRoot);
+    // Only surface a warning for unusual failures (timeout, malformed output), not for
+    // normal non-Git folders or systems without Git installed — those are represented in
+    // git.warning and git.isGitRepository / git.gitAvailable.
+    if (git.warning && git.gitAvailable && git.isGitRepository) {
+      warnings.push("Could not read Git metadata. Scan completed without Git information.");
+    }
+  } catch {
+    warnings.push("Could not read Git metadata. Scan completed without Git information.");
+  }
+
   return {
     projectRoot,
     nodes: context.nodes,
-    summary
+    summary,
+    ...(warnings.length > 0 ? { warnings } : {}),
+    git
   };
 }
 

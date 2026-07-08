@@ -4,6 +4,7 @@ import { ExportControls } from "./components/ExportControls";
 import { ExportPreviewModal } from "./components/ExportPreviewModal";
 import { ExportToast } from "./components/ExportToast";
 import { FileTree } from "./components/FileTree";
+import { GitInfoBadge } from "./components/GitInfoBadge";
 import { InlineInfo } from "./components/InlineInfo";
 import { LocalFirstInfo } from "./components/LocalFirstInfo";
 import { ProjectPicker } from "./components/ProjectPicker";
@@ -201,7 +202,8 @@ export default function App(): JSX.Element {
       exclude: configExcludePatterns,
       maxFileSizeKb,
       respectGitIgnore,
-      followSymlinks
+      followSymlinks,
+      git: scanResult.git
     });
   }
 
@@ -1096,6 +1098,7 @@ export default function App(): JSX.Element {
                     {scanResult.summary.skippedFiles} files.
                   </p>
                 ) : null}
+                <GitInfoBadge git={scanResult?.git} />
               </div>
             </div>
 
