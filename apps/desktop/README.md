@@ -136,6 +136,32 @@ Resolution order:
 
 Development uses `PYTHONPATH` to make `../../exporter-python` importable.
 
+## Git Metadata
+
+After a successful scan, the app reads Git context for the scanned project folder and displays a badge below the file count:
+
+```
+Git: main · abc1234 · clean
+Git: feature/my-branch · abc1234 · modified
+Git: detached HEAD · cafebab
+Git: Not a Git repository
+Git: Git not available
+```
+
+Git metadata is also included in previews and final Python exports:
+
+```markdown
+## Git
+
+- Branch: main
+- Commit: abc1234
+- Working tree: clean
+```
+
+Git detection runs in the Electron main process using `git rev-parse` and `git status --porcelain=v1 --untracked-files=no`. Each command has a 2-second timeout. Git failures never block scanning or export. The renderer never runs Git.
+
+The Python exporter never runs Git — it formats only the metadata already provided in the export config.
+
 ## Known Limitations
 
 - Signing and notarization are not implemented; CI artifacts are unsigned beta builds.
