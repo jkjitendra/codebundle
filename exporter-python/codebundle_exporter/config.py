@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import json
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
@@ -13,6 +13,25 @@ from .errors import InvalidConfigError
 
 VALID_FORMATS = {"markdown", "text"}
 VALID_MODES = {"selected", "include", "all"}
+
+
+@dataclass(frozen=True)
+class GitInfo:
+    """Git project context as provided by the Electron main process at scan time.
+
+    The Python exporter never runs Git itself — it only formats metadata already
+    captured and passed through the export config.
+    """
+
+    is_git_repository: bool
+    git_available: bool
+    repo_root: str | None = None
+    branch: str | None = None
+    commit: str | None = None
+    short_commit: str | None = None
+    is_detached_head: bool = False
+    has_tracked_changes: bool | None = None
+    warning: str | None = None
 
 
 @dataclass(frozen=True)
@@ -30,6 +49,7 @@ class ExportConfig:
     skip_binary_files: bool
     respect_git_ignore: bool
     follow_symlinks: bool
+    git: GitInfo | None = None
 
     @property
     def max_file_size_bytes(self) -> int:
@@ -101,6 +121,10 @@ def parse_config(raw: dict[str, Any]) -> ExportConfig:
         for value in values:
             assert_relative_inside(project_root, value, label)
 
+    # Parse git metadata tolerantly — missing or malformed git is silently ignored
+    # so older configs without a git field continue to work.
+    git_info = _parse_git_info(raw.get("git"))
+
     return ExportConfig(
         version=version,
         project_root=project_root,
@@ -115,7 +139,46 @@ def parse_config(raw: dict[str, Any]) -> ExportConfig:
         skip_binary_files=skip_binary_files,
         respect_git_ignore=respect_git_ignore,
         follow_symlinks=follow_symlinks,
+        git=git_info,
     )
+
+
+def _parse_git_info(raw_git: Any) -> GitInfo | None:
+    """Tolerantly parse optional Git metadata from the config.
+
+    Returns None if the value is missing, not an object, or lacks required fields.
+    The Python exporter never runs Git itself — it only formats this pre-captured data.
+    """
+    if not isinstance(raw_git, dict):
+        return None
+
+    is_git_repository = raw_git.get("isGitRepository")
+    git_available = raw_git.get("gitAvailable")
+
+    # Both required booleans must be present; anything else is invalid.
+    if not isinstance(is_git_repository, bool) or not isinstance(git_available, bool):
+        return None
+
+    has_tracked_changes = raw_git.get("hasTrackedChanges")
+
+    return GitInfo(
+        is_git_repository=is_git_repository,
+        git_available=git_available,
+        repo_root=_optional_str(raw_git.get("repoRoot")),
+        branch=_optional_str(raw_git.get("branch")),
+        commit=_optional_str(raw_git.get("commit")),
+        short_commit=_optional_str(raw_git.get("shortCommit")),
+        is_detached_head=bool(raw_git.get("isDetachedHead", False)),
+        has_tracked_changes=has_tracked_changes if isinstance(has_tracked_changes, bool) else None,
+        warning=_optional_str(raw_git.get("warning")),
+    )
+
+
+def _optional_str(value: Any) -> str | None:
+    """Return value if it is a non-empty string, otherwise None."""
+    if isinstance(value, str) and value:
+        return value
+    return None
 
 
 def assert_relative_inside(project_root: Path, relative_path: str, label: str) -> Path:
