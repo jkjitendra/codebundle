@@ -627,3 +627,208 @@ describe("markdownFence", () => {
     expect(markdownFence("`````")).toBe("``````");
   });
 });
+
+// ---------------------------------------------------------------------------
+// Git section rendering tests
+// ---------------------------------------------------------------------------
+
+describe("generatePreview — Git section in Markdown", () => {
+  it("includes ## Git section when config.git is a Git repository", async () => {
+    const config = makeConfig({
+      git: {
+        isGitRepository: true,
+        gitAvailable: true,
+        branch: "main",
+        shortCommit: "abc1234",
+        isDetachedHead: false,
+        hasTrackedChanges: false
+      }
+    });
+
+    const result = await generatePreview(
+      { config, maxPreviewLines: 500, maxPreviewBytes: 200_000 },
+      stubDeps()
+    );
+
+    expect(result.success).toBe(true);
+    if (!result.success) return;
+
+    const content = result.preview.content;
+    expect(content).toContain("## Git");
+    expect(content).toContain("- Branch: main");
+    expect(content).toContain("- Commit: abc1234");
+    expect(content).toContain("- Working tree: clean");
+  });
+
+  it("shows 'modified' working tree when hasTrackedChanges is true", async () => {
+    const config = makeConfig({
+      git: {
+        isGitRepository: true,
+        gitAvailable: true,
+        branch: "feature/my-branch",
+        shortCommit: "deadbee",
+        isDetachedHead: false,
+        hasTrackedChanges: true
+      }
+    });
+
+    const result = await generatePreview(
+      { config, maxPreviewLines: 500, maxPreviewBytes: 200_000 },
+      stubDeps()
+    );
+
+    expect(result.success).toBe(true);
+    if (!result.success) return;
+    expect(result.preview.content).toContain("- Working tree: modified");
+    expect(result.preview.content).toContain("- Branch: feature/my-branch");
+  });
+
+  it("renders detached HEAD as 'Branch: detached HEAD'", async () => {
+    const config = makeConfig({
+      git: {
+        isGitRepository: true,
+        gitAvailable: true,
+        isDetachedHead: true,
+        shortCommit: "cafebab",
+        hasTrackedChanges: false
+      }
+    });
+
+    const result = await generatePreview(
+      { config, maxPreviewLines: 500, maxPreviewBytes: 200_000 },
+      stubDeps()
+    );
+
+    expect(result.success).toBe(true);
+    if (!result.success) return;
+    expect(result.preview.content).toContain("- Branch: detached HEAD");
+    expect(result.preview.content).not.toContain("- Branch: undefined");
+  });
+
+  it("omits Git section when isGitRepository is false", async () => {
+    const config = makeConfig({
+      git: {
+        isGitRepository: false,
+        gitAvailable: true
+      }
+    });
+
+    const result = await generatePreview(
+      { config, maxPreviewLines: 500, maxPreviewBytes: 200_000 },
+      stubDeps()
+    );
+
+    expect(result.success).toBe(true);
+    if (!result.success) return;
+    expect(result.preview.content).not.toContain("## Git");
+  });
+
+  it("omits Git section when config.git is undefined", async () => {
+    const config = makeConfig({});
+
+    const result = await generatePreview(
+      { config, maxPreviewLines: 500, maxPreviewBytes: 200_000 },
+      stubDeps()
+    );
+
+    expect(result.success).toBe(true);
+    if (!result.success) return;
+    expect(result.preview.content).not.toContain("## Git");
+  });
+
+  it("omits Git section when gitAvailable is false", async () => {
+    const config = makeConfig({
+      git: {
+        isGitRepository: false,
+        gitAvailable: false,
+        warning: "Git is not available."
+      }
+    });
+
+    const result = await generatePreview(
+      { config, maxPreviewLines: 500, maxPreviewBytes: 200_000 },
+      stubDeps()
+    );
+
+    expect(result.success).toBe(true);
+    if (!result.success) return;
+    expect(result.preview.content).not.toContain("## Git");
+  });
+});
+
+describe("generatePreview — Git section in Text format", () => {
+  it("includes Git section in text format when config.git is a Git repository", async () => {
+    const config = makeConfig({
+      format: "text",
+      git: {
+        isGitRepository: true,
+        gitAvailable: true,
+        branch: "main",
+        shortCommit: "abc1234",
+        isDetachedHead: false,
+        hasTrackedChanges: false
+      }
+    });
+
+    const result = await generatePreview(
+      { config, maxPreviewLines: 500, maxPreviewBytes: 200_000 },
+      stubDeps()
+    );
+
+    expect(result.success).toBe(true);
+    if (!result.success) return;
+
+    const content = result.preview.content;
+    // Text format uses plain "Git" not "## Git"
+    expect(content).toContain("\nGit\n");
+    expect(content).toContain("Branch: main");
+    expect(content).toContain("Commit: abc1234");
+    expect(content).toContain("Working tree: clean");
+    // Should not use Markdown bullet format
+    expect(content).not.toContain("- Branch:");
+  });
+
+  it("renders detached HEAD correctly in text format", async () => {
+    const config = makeConfig({
+      format: "text",
+      git: {
+        isGitRepository: true,
+        gitAvailable: true,
+        isDetachedHead: true,
+        shortCommit: "cafebab",
+        hasTrackedChanges: true
+      }
+    });
+
+    const result = await generatePreview(
+      { config, maxPreviewLines: 500, maxPreviewBytes: 200_000 },
+      stubDeps()
+    );
+
+    expect(result.success).toBe(true);
+    if (!result.success) return;
+    expect(result.preview.content).toContain("Branch: detached HEAD");
+    expect(result.preview.content).toContain("Working tree: modified");
+  });
+
+  it("omits Git section in text format when not a Git repository", async () => {
+    const config = makeConfig({
+      format: "text",
+      git: {
+        isGitRepository: false,
+        gitAvailable: true
+      }
+    });
+
+    const result = await generatePreview(
+      { config, maxPreviewLines: 500, maxPreviewBytes: 200_000 },
+      stubDeps()
+    );
+
+    expect(result.success).toBe(true);
+    if (!result.success) return;
+    // Should not contain standalone "Git" header block
+    expect(result.preview.content).not.toMatch(/\nGit\n/);
+  });
+});
+
