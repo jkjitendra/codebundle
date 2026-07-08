@@ -58,11 +58,24 @@ export interface ScanSummary {
   skippedExcluded: number;
 }
 
+export interface GitProjectInfo {
+  isGitRepository: boolean;
+  gitAvailable: boolean;
+  repoRoot?: string;
+  branch?: string;
+  commit?: string;
+  shortCommit?: string;
+  isDetachedHead?: boolean;
+  hasTrackedChanges?: boolean;
+  warning?: string;
+}
+
 export interface ScanProjectResult {
   projectRoot: string;
   nodes: ScanNode[];
   summary: ScanSummary;
   warnings?: string[];
+  git?: GitProjectInfo;
 }
 
 export interface CodeBundleConfigPreview {
@@ -79,6 +92,7 @@ export interface CodeBundleConfigPreview {
   skipBinaryFiles: boolean;
   respectGitIgnore: boolean;
   followSymlinks: boolean;
+  git?: GitProjectInfo;
 }
 
 export type CodeBundleExportConfig = CodeBundleConfigPreview;
