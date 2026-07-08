@@ -1,9 +1,22 @@
 import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { DEFAULT_EXCLUDES } from "../src/main/defaultRules";
 import { isExcludedPath, scanProject } from "../src/main/scanFiles";
+
+// Mock gitInfo so scan tests don't invoke the real git executable.
+vi.mock("../src/main/gitInfo", () => ({
+  detectGitProjectInfo: vi.fn().mockResolvedValue({
+    isGitRepository: true,
+    gitAvailable: true,
+    branch: "main",
+    shortCommit: "abc1234",
+    commit: "abc1234567890abcdef",
+    isDetachedHead: false,
+    hasTrackedChanges: false
+  })
+}));
 
 async function createFixture(): Promise<string> {
   const root = await mkdtemp(join(tmpdir(), "codebundle-scan-"));
@@ -183,6 +196,56 @@ describe("scanFiles excludes", () => {
 
     expect(result.nodes.some((node) => node.path.includes("node_modules"))).toBe(false);
     expect(result.summary.skippedExcluded).toBeGreaterThanOrEqual(1);
+    await rm(root, { recursive: true, force: true });
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Git metadata integration
+// ---------------------------------------------------------------------------
+
+describe("scanProject — git metadata", () => {
+  it("includes a git field in the scan result", async () => {
+    const root = await createFixture();
+
+    const result = await scanProject({
+      projectRoot: root,
+      maxFileSizeKb: 500,
+      exclude: [],
+      respectGitIgnore: false,
+      followSymlinks: false
+    });
+
+    // git field should be present (mocked to return a Git repository result).
+    expect(result.git).toBeDefined();
+    expect(typeof result.git?.isGitRepository).toBe("boolean");
+    expect(typeof result.git?.gitAvailable).toBe("boolean");
+
+    await rm(root, { recursive: true, force: true });
+  });
+
+  it("scan still succeeds when git detection throws", async () => {
+    const { detectGitProjectInfo } = await import("../src/main/gitInfo");
+    const mockDetect = detectGitProjectInfo as ReturnType<typeof vi.fn>;
+    mockDetect.mockRejectedValueOnce(new Error("unexpected git error"));
+
+    const root = await createFixture();
+
+    const result = await scanProject({
+      projectRoot: root,
+      maxFileSizeKb: 500,
+      exclude: [],
+      respectGitIgnore: false,
+      followSymlinks: false
+    });
+
+    // Scan must succeed regardless of Git detection failure.
+    expect(result.nodes.length).toBeGreaterThan(0);
+    expect(result.summary.totalFiles).toBeGreaterThan(0);
+    // A warning is added when git detection throws.
+    expect(result.warnings).toBeDefined();
+    expect(result.warnings?.some((w) => w.includes("Git"))).toBe(true);
+
     await rm(root, { recursive: true, force: true });
   });
 });
