@@ -4,6 +4,7 @@ import { tmpdir } from "node:os";
 import { dirname, isAbsolute, join, resolve } from "node:path";
 import type {
   CodeBundleExportConfig,
+  GitProjectInfo,
   PreparedExportSummary,
   PrepareExportConfigFailure,
   PrepareExportConfigResult
@@ -156,7 +157,8 @@ async function validateExportConfig(input: unknown): Promise<CodeBundleExportCon
     maxFileSizeKb,
     skipBinaryFiles,
     respectGitIgnore,
-    followSymlinks
+    followSymlinks,
+    git: sanitizeGitInfo(input.git)
   };
 }
 
@@ -223,4 +225,58 @@ function requireBoolean(input: Record<string, unknown>, key: string): boolean {
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+// ---------------------------------------------------------------------------
+// Git info sanitizer — whitelist only known fields, cap string lengths
+// ---------------------------------------------------------------------------
+
+const GIT_BRANCH_MAX = 300;
+const GIT_COMMIT_MAX = 128;
+const GIT_WARNING_MAX = 300;
+
+/**
+ * Sanitize and whitelist Git metadata from an IPC config payload.
+ * Only known fields are passed through; unknown properties are dropped.
+ * String values are capped to prevent excessively long values.
+ * Returns undefined if input is not a valid object.
+ */
+export function sanitizeGitInfo(value: unknown): GitProjectInfo | undefined {
+  if (!isRecord(value)) {
+    return undefined;
+  }
+
+  const isGitRepository = value.isGitRepository;
+  const gitAvailable = value.gitAvailable;
+
+  // Both required booleans must be present.
+  if (typeof isGitRepository !== "boolean" || typeof gitAvailable !== "boolean") {
+    return undefined;
+  }
+
+  const result: GitProjectInfo = { isGitRepository, gitAvailable };
+
+  if (typeof value.repoRoot === "string") {
+    result.repoRoot = value.repoRoot.slice(0, GIT_BRANCH_MAX);
+  }
+  if (typeof value.branch === "string") {
+    result.branch = value.branch.slice(0, GIT_BRANCH_MAX);
+  }
+  if (typeof value.commit === "string") {
+    result.commit = value.commit.slice(0, GIT_COMMIT_MAX);
+  }
+  if (typeof value.shortCommit === "string") {
+    result.shortCommit = value.shortCommit.slice(0, GIT_COMMIT_MAX);
+  }
+  if (typeof value.isDetachedHead === "boolean") {
+    result.isDetachedHead = value.isDetachedHead;
+  }
+  if (typeof value.hasTrackedChanges === "boolean") {
+    result.hasTrackedChanges = value.hasTrackedChanges;
+  }
+  if (typeof value.warning === "string") {
+    result.warning = value.warning.slice(0, GIT_WARNING_MAX);
+  }
+
+  return result;
 }
