@@ -4,6 +4,7 @@ import { ExportControls } from "./components/ExportControls";
 import { ExportPreviewModal } from "./components/ExportPreviewModal";
 import { ExportToast } from "./components/ExportToast";
 import { FileTree } from "./components/FileTree";
+import { GitDiffSelector } from "./components/GitDiffSelector";
 import { GitInfoBadge } from "./components/GitInfoBadge";
 import { InlineInfo } from "./components/InlineInfo";
 import { LocalFirstInfo } from "./components/LocalFirstInfo";
@@ -11,6 +12,7 @@ import { ProjectPicker } from "./components/ProjectPicker";
 import { SavedExportProfiles } from "./components/SavedExportProfiles";
 import { SecretScanWarning } from "./components/SecretScanWarning";
 import { restoreProfileSelection } from "./lib/profileSelection";
+import { buildGitDiffSelection } from "./lib/gitDiffSelection";
 import {
   buildConfigPreview,
   clearSelection,
@@ -27,6 +29,8 @@ import type {
   CodeBundleConfigPreview,
   CodeBundlePreferences,
   FileTreeNode,
+  GitDiffExportInfo,
+  GitDiffMode,
   PrepareExportConfigResult,
   PreviewResult,
   RecentProject,
@@ -149,6 +153,8 @@ export default function App(): JSX.Element {
   const [isGeneratingPreview, setIsGeneratingPreview] = useState(false);
   const [previewResult, setPreviewResult] = useState<PreviewResult | null>(null);
   const [showPreviewModal, setShowPreviewModal] = useState(false);
+  const [isLoadingGitDiff, setIsLoadingGitDiff] = useState(false);
+  const [activeGitDiffInfo, setActiveGitDiffInfo] = useState<GitDiffExportInfo | null>(null);
   const pendingProfileSelectionRef = useRef<{
     profileId: string;
     projectRoot: string;
@@ -203,7 +209,8 @@ export default function App(): JSX.Element {
       maxFileSizeKb,
       respectGitIgnore,
       followSymlinks,
-      git: scanResult.git
+      git: scanResult.git,
+      gitDiff: activeGitDiffInfo ?? undefined
     });
   }
 
@@ -302,6 +309,7 @@ export default function App(): JSX.Element {
     setSelection(clearSelection());
     setExpandedFolders(new Set());
     setWarnings([]);
+    setActiveGitDiffInfo(null);
   }
 
   async function handleFolderDropped(droppedPath: string): Promise<FolderDropResult> {
@@ -357,6 +365,7 @@ export default function App(): JSX.Element {
 
     setError(null);
     setWarnings([]);
+    setActiveGitDiffInfo(null);
     setIsScanning(true);
 
     try {
@@ -505,6 +514,7 @@ export default function App(): JSX.Element {
     setRespectGitIgnore(profile.respectGitIgnore);
     setFollowSymlinks(profile.followSymlinks);
     setExcludeText(profile.excludeText);
+    setActiveGitDiffInfo(null);
     resetProjectState();
     pendingProfileSelectionRef.current = {
       profileId: profile.id,
@@ -555,6 +565,7 @@ export default function App(): JSX.Element {
     setCopyStatus(null);
     setToast(null);
     setConfigPreview(null);
+    setActiveGitDiffInfo(null);
     setSelection((current) => toggleNodeSelection(node, current, treeIndex));
   }
 
@@ -565,6 +576,7 @@ export default function App(): JSX.Element {
     setCopyStatus(null);
     setToast(null);
     setConfigPreview(null);
+    setActiveGitDiffInfo(null);
     setSelection((current) => selectPaths(collectFilePaths(filteredTree), current, treeIndex));
   }
 
@@ -575,7 +587,83 @@ export default function App(): JSX.Element {
     setCopyStatus(null);
     setToast(null);
     setConfigPreview(null);
+    setActiveGitDiffInfo(null);
     setSelection(clearSelection());
+  }
+
+  async function handleSelectGitDiffFiles(options: {
+    mode: GitDiffMode;
+    baseRef?: string;
+    includeUntracked: boolean;
+  }): Promise<void> {
+    if (!projectFolder || !scanResult) {
+      setToast({
+        kind: "info",
+        title: "Scan a project first",
+        message: "Git diff selection is available after a project scan."
+      });
+      return;
+    }
+
+    setIsLoadingGitDiff(true);
+    try {
+      const result = await window.codeBundle.getGitDiffFiles({
+        projectRoot: projectFolder,
+        mode: options.mode,
+        baseRef: options.baseRef,
+        includeUntracked: options.includeUntracked
+      });
+
+      if (!result.gitAvailable || !result.isGitRepository) {
+        setToast({
+          kind: "info",
+          title: "Git diff unavailable",
+          message: result.warning ?? (!result.gitAvailable ? "Git is not available." : "This folder is not a Git repository.")
+        });
+        return;
+      }
+      if (result.warning) {
+        setToast({ kind: "error", title: "Git diff could not be read", message: result.warning });
+        return;
+      }
+
+      const { availablePaths, gitDiffInfo } = buildGitDiffSelection({
+        diffFiles: result.files,
+        treeIndex,
+        deletedCount: result.deletedCount,
+        skippedInvalidCount: result.skippedInvalidCount,
+        mode: result.mode,
+        baseRef: result.baseRef,
+        includeUntracked: options.includeUntracked
+      });
+
+      setPrepareResult(null);
+      setExportResult(null);
+      setRevealError(null);
+      setCopyStatus(null);
+      setConfigPreview(null);
+      setPreviewResult(null);
+      setShowPreviewModal(false);
+      setSelection(selectPaths(availablePaths, clearSelection(), treeIndex));
+      setActiveGitDiffInfo(gitDiffInfo);
+
+      const unavailableSuffix = gitDiffInfo.unavailableFilesCount > 0
+        ? ` ${gitDiffInfo.unavailableFilesCount} unavailable or skipped.`
+        : "";
+      setToast({
+        kind: "success",
+        title: "Git diff selection updated",
+        message: `Selected ${gitDiffInfo.selectedFilesCount} changed file${gitDiffInfo.selectedFilesCount === 1 ? "" : "s"}.${unavailableSuffix}`
+      });
+    } catch (caughtError) {
+      setToast({
+        kind: "error",
+        title: "Git diff could not be read",
+        message: caughtError instanceof Error ? caughtError.message : "Could not read local Git changes."
+      });
+    } finally {
+      setIsLoadingGitDiff(false);
+    }
   }
 
   async function prepareExportConfig(): Promise<void> {
@@ -961,6 +1049,7 @@ export default function App(): JSX.Element {
                       setCopyStatus(null);
                       setToast(null);
                       setConfigPreview(null);
+                      setActiveGitDiffInfo(null);
                       setMaxFileSizeKb(Number(event.target.value) || DEFAULT_MAX_FILE_SIZE_KB);
                     }}
                     style={styles.numberInput}
@@ -978,6 +1067,7 @@ export default function App(): JSX.Element {
                         setCopyStatus(null);
                         setToast(null);
                         setConfigPreview(null);
+                        setActiveGitDiffInfo(null);
                         setRespectGitIgnore(event.target.checked);
                       }}
                     />
@@ -1011,6 +1101,7 @@ export default function App(): JSX.Element {
                         setCopyStatus(null);
                         setToast(null);
                         setConfigPreview(null);
+                        setActiveGitDiffInfo(null);
                         setFollowSymlinks(event.target.checked);
                       }}
                     />
@@ -1039,6 +1130,7 @@ export default function App(): JSX.Element {
                   setCopyStatus(null);
                   setToast(null);
                   setConfigPreview(null);
+                  setActiveGitDiffInfo(null);
                   setExcludeText(value);
                 }}
               />
@@ -1099,6 +1191,12 @@ export default function App(): JSX.Element {
                   </p>
                 ) : null}
                 <GitInfoBadge git={scanResult?.git} />
+                <GitDiffSelector
+                  git={scanResult?.git}
+                  disabled={!scanResult || isScanning}
+                  isLoading={isLoadingGitDiff}
+                  onSelectChangedFiles={handleSelectGitDiffFiles}
+                />
               </div>
             </div>
 
