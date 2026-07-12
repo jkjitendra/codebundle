@@ -70,6 +70,40 @@ export interface GitProjectInfo {
   warning?: string;
 }
 
+export type GitDiffMode = "workingTree" | "branch";
+
+export interface GitDiffOptions {
+  projectRoot: string;
+  mode: GitDiffMode;
+  baseRef?: string;
+  includeUntracked: boolean;
+}
+
+export interface GitDiffFile {
+  path: string;
+  status: "added" | "modified" | "renamed" | "copied" | "typeChanged" | "untracked";
+}
+
+export interface GitDiffResult {
+  isGitRepository: boolean;
+  gitAvailable: boolean;
+  mode: GitDiffMode;
+  baseRef?: string;
+  files: GitDiffFile[];
+  deletedCount: number;
+  skippedInvalidCount: number;
+  warning?: string;
+}
+
+export interface GitDiffExportInfo {
+  mode: GitDiffMode;
+  baseRef?: string;
+  includeUntracked: boolean;
+  changedFilesCount: number;
+  selectedFilesCount: number;
+  unavailableFilesCount: number;
+}
+
 export interface ScanProjectResult {
   projectRoot: string;
   nodes: ScanNode[];
@@ -93,6 +127,7 @@ export interface CodeBundleConfigPreview {
   respectGitIgnore: boolean;
   followSymlinks: boolean;
   git?: GitProjectInfo;
+  gitDiff?: GitDiffExportInfo;
 }
 
 export type CodeBundleExportConfig = CodeBundleConfigPreview;
@@ -327,6 +362,7 @@ export interface CodeBundleApi {
   saveExportProfile: (profile: SaveExportProfileInput) => Promise<ExportProfilesResult>;
   deleteExportProfile: (id: string) => Promise<ExportProfilesResult>;
   markExportProfileUsed: (id: string) => Promise<ExportProfilesResult>;
+  getGitDiffFiles: (options: GitDiffOptions) => Promise<GitDiffResult>;
   getPathForFile: (file: File) => string;
 }
 
