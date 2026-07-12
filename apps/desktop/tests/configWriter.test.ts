@@ -2,7 +2,7 @@ import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
-import { sanitizeGitInfo, writeValidatedExportConfig } from "../src/main/configWriter";
+import { sanitizeGitDiffInfo, sanitizeGitInfo, writeValidatedExportConfig } from "../src/main/configWriter";
 
 function makeExportConfig(projectRoot: string, outputFile: string, git: unknown) {
   return {
@@ -20,6 +20,17 @@ function makeExportConfig(projectRoot: string, outputFile: string, git: unknown)
     respectGitIgnore: true,
     followSymlinks: false,
     git
+  };
+}
+
+function validGitDiff(overrides: Record<string, unknown> = {}) {
+  return {
+    mode: "workingTree",
+    includeUntracked: false,
+    changedFilesCount: 3,
+    selectedFilesCount: 2,
+    unavailableFilesCount: 1,
+    ...overrides
   };
 }
 
@@ -113,6 +124,62 @@ describe("sanitizeGitInfo", () => {
       expect(prepared.config.git).toBeUndefined();
       const serialized = JSON.parse(await readFile(tempConfigPath, "utf8")) as Record<string, unknown>;
       expect(serialized).not.toHaveProperty("git");
+    } finally {
+      if (tempConfigPath) {
+        await rm(tempConfigPath, { force: true });
+      }
+      await rm(projectRoot, { recursive: true, force: true });
+    }
+  });
+});
+
+describe("sanitizeGitDiffInfo", () => {
+  it("accepts valid metadata and drops unknown fields", () => {
+    const sanitized = sanitizeGitDiffInfo(validGitDiff({ baseRef: "main", ignored: "value" }));
+
+    expect(sanitized).toEqual({
+      mode: "workingTree",
+      baseRef: "main",
+      includeUntracked: false,
+      changedFilesCount: 3,
+      selectedFilesCount: 2,
+      unavailableFilesCount: 1
+    });
+    expect(sanitized as unknown as Record<string, unknown>).not.toHaveProperty("ignored");
+  });
+
+  it("rejects invalid modes and invalid counts", () => {
+    expect(sanitizeGitDiffInfo(validGitDiff({ mode: "all" }))).toBeUndefined();
+    expect(sanitizeGitDiffInfo(validGitDiff({ changedFilesCount: -1 }))).toBeUndefined();
+    expect(sanitizeGitDiffInfo(validGitDiff({ selectedFilesCount: 1.5 }))).toBeUndefined();
+  });
+
+  it("writes sanitized gitDiff and omits malformed metadata", async () => {
+    const projectRoot = await mkdtemp(join(tmpdir(), "codebundle-config-writer-git-diff-test-"));
+    let tempConfigPath: string | undefined;
+
+    try {
+      await writeFile(join(projectRoot, "app.ts"), "const app = true;\n", "utf8");
+      const prepared = await writeValidatedExportConfig({
+        ...makeExportConfig(projectRoot, join(projectRoot, "out.md"), undefined),
+        gitDiff: validGitDiff({ unknown: "dropped" })
+      });
+      tempConfigPath = prepared.tempConfigPath;
+      expect(prepared.config.gitDiff).toEqual(validGitDiff());
+
+      const serialized = JSON.parse(await readFile(tempConfigPath, "utf8")) as Record<string, unknown>;
+      expect(serialized.gitDiff).toEqual(validGitDiff());
+
+      await rm(tempConfigPath, { force: true });
+      tempConfigPath = undefined;
+      const malformed = await writeValidatedExportConfig({
+        ...makeExportConfig(projectRoot, join(projectRoot, "out-two.md"), undefined),
+        gitDiff: validGitDiff({ unavailableFilesCount: -1 })
+      });
+      tempConfigPath = malformed.tempConfigPath;
+      expect(malformed.config.gitDiff).toBeUndefined();
+      const malformedSerialized = JSON.parse(await readFile(tempConfigPath, "utf8")) as Record<string, unknown>;
+      expect(malformedSerialized).not.toHaveProperty("gitDiff");
     } finally {
       if (tempConfigPath) {
         await rm(tempConfigPath, { force: true });
