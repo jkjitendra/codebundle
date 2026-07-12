@@ -4,6 +4,7 @@ import { DEFAULT_EXCLUDES } from "./defaultRules";
 import { prepareExportConfig } from "./configWriter";
 import { validateDroppedFolder } from "./dropFolderValidation";
 import { deleteExportProfile, markExportProfileUsed, readExportProfiles, saveExportProfile } from "./exportProfiles";
+import { getGitDiffFiles } from "./gitDiff";
 import { readPreferences, savePreferences } from "./preferences";
 import { generatePreview } from "./previewGenerator";
 import { addRecentProject, readRecentProjects, removeRecentProject, validateRecentProjects } from "./recentProjects";
@@ -225,4 +226,8 @@ export function registerIpcHandlers(): void {
       return getStoredExportProfilesResult();
     }
   });
+
+  ipcMain.handle("codebundle:get-git-diff-files", async (_event, options: unknown) =>
+    getGitDiffFiles(options)
+  );
 }
