@@ -5,7 +5,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from pathlib import Path
 
-from .config import ExportConfig, GitInfo
+from .config import ExportConfig, GitDiffInfo, GitInfo
 from .reader import read_text_file
 from .scanner import FileEntry
 
@@ -19,9 +19,9 @@ class ExportedFile:
 def write_export(config: ExportConfig, files: list[FileEntry]) -> Path:
     exported = [ExportedFile(item.relative_path, read_text_file(item.path)) for item in files]
     if config.format == "markdown":
-        output = render_markdown(config.project_root, exported, git_info=config.git)
+        output = render_markdown(config.project_root, exported, git_info=config.git, git_diff_info=config.git_diff)
     else:
-        output = render_text(config.project_root, exported, git_info=config.git)
+        output = render_text(config.project_root, exported, git_info=config.git, git_diff_info=config.git_diff)
 
     config.output_file.parent.mkdir(parents=True, exist_ok=True)
     config.output_file.write_text(output, encoding="utf-8")
@@ -33,6 +33,7 @@ def render_markdown(
     files: list[ExportedFile],
     *,
     git_info: GitInfo | None = None,
+    git_diff_info: GitDiffInfo | None = None,
 ) -> str:
     lines: list[str] = [
         "# CodeBundle Export",
@@ -46,6 +47,7 @@ def render_markdown(
     # Insert Git section when the project is a Git repository.
     git_lines = _render_git_section_markdown(git_info)
     lines.extend(git_lines)
+    lines.extend(_render_git_diff_section_markdown(git_diff_info))
 
     lines.extend(["---", ""])
 
@@ -87,6 +89,20 @@ def _render_git_section_markdown(git_info: GitInfo | None) -> list[str]:
     return lines
 
 
+def _render_git_diff_section_markdown(git_diff_info: GitDiffInfo | None) -> list[str]:
+    if git_diff_info is None:
+        return []
+    return [
+        "## Git Diff",
+        "",
+        f"- Mode: {_format_git_diff_mode(git_diff_info)}",
+        f"- Changed files selected: {git_diff_info.selected_files_count}",
+        f"- Unavailable/skipped: {git_diff_info.unavailable_files_count}",
+        f"- Include untracked: {'yes' if git_diff_info.include_untracked else 'no'}",
+        "",
+    ]
+
+
 def _markdown_fence(content: str) -> str:
     longest_run = 0
     current_run = 0
@@ -104,6 +120,7 @@ def render_text(
     files: list[ExportedFile],
     *,
     git_info: GitInfo | None = None,
+    git_diff_info: GitDiffInfo | None = None,
 ) -> str:
     lines: list[str] = [
         "CodeBundle Export",
@@ -117,6 +134,7 @@ def render_text(
     # Insert Git section when the project is a Git repository.
     git_lines = _render_git_section_text(git_info)
     lines.extend(git_lines)
+    lines.extend(_render_git_diff_section_text(git_diff_info))
 
     lines.extend(["---", ""])
 
@@ -157,6 +175,20 @@ def _render_git_section_text(git_info: GitInfo | None) -> list[str]:
     return lines
 
 
+def _render_git_diff_section_text(git_diff_info: GitDiffInfo | None) -> list[str]:
+    if git_diff_info is None:
+        return []
+    return [
+        "Git Diff",
+        "",
+        f"Mode: {_format_git_diff_mode(git_diff_info)}",
+        f"Changed files selected: {git_diff_info.selected_files_count}",
+        f"Unavailable/skipped: {git_diff_info.unavailable_files_count}",
+        f"Include untracked: {'yes' if git_diff_info.include_untracked else 'no'}",
+        "",
+    ]
+
+
 def _format_branch_label(git_info: GitInfo) -> str | None:
     """Return 'detached HEAD' for detached state, branch name otherwise, or None."""
     if git_info.is_detached_head:
@@ -169,3 +201,9 @@ def _format_working_tree(git_info: GitInfo) -> str | None:
     if git_info.has_tracked_changes is None:
         return None
     return "modified" if git_info.has_tracked_changes else "clean"
+
+
+def _format_git_diff_mode(git_diff_info: GitDiffInfo) -> str:
+    if git_diff_info.mode == "branch":
+        return f"Branch vs {git_diff_info.base_ref or 'base'}"
+    return "Working tree vs HEAD"
