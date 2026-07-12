@@ -35,6 +35,18 @@ class GitInfo:
 
 
 @dataclass(frozen=True)
+class GitDiffInfo:
+    """Git diff-only selection metadata supplied by the desktop app."""
+
+    mode: str
+    include_untracked: bool
+    changed_files_count: int
+    selected_files_count: int
+    unavailable_files_count: int
+    base_ref: str | None = None
+
+
+@dataclass(frozen=True)
 class ExportConfig:
     version: int
     project_root: Path
@@ -50,6 +62,7 @@ class ExportConfig:
     respect_git_ignore: bool
     follow_symlinks: bool
     git: GitInfo | None = None
+    git_diff: GitDiffInfo | None = None
 
     @property
     def max_file_size_bytes(self) -> int:
@@ -124,6 +137,7 @@ def parse_config(raw: dict[str, Any]) -> ExportConfig:
     # Parse git metadata tolerantly — missing or malformed git is silently ignored
     # so older configs without a git field continue to work.
     git_info = _parse_git_info(raw.get("git"))
+    git_diff_info = _parse_git_diff_info(raw.get("gitDiff"))
 
     return ExportConfig(
         version=version,
@@ -140,6 +154,7 @@ def parse_config(raw: dict[str, Any]) -> ExportConfig:
         respect_git_ignore=respect_git_ignore,
         follow_symlinks=follow_symlinks,
         git=git_info,
+        git_diff=git_diff_info,
     )
 
 
@@ -171,6 +186,37 @@ def _parse_git_info(raw_git: Any) -> GitInfo | None:
         is_detached_head=bool(raw_git.get("isDetachedHead", False)),
         has_tracked_changes=has_tracked_changes if isinstance(has_tracked_changes, bool) else None,
         warning=_optional_str(raw_git.get("warning")),
+    )
+
+
+def _parse_git_diff_info(raw_git_diff: Any) -> GitDiffInfo | None:
+    """Tolerantly parse optional Git diff metadata from a desktop config."""
+    if not isinstance(raw_git_diff, dict):
+        return None
+
+    mode = raw_git_diff.get("mode")
+    include_untracked = raw_git_diff.get("includeUntracked")
+    changed_files_count = raw_git_diff.get("changedFilesCount")
+    selected_files_count = raw_git_diff.get("selectedFilesCount")
+    unavailable_files_count = raw_git_diff.get("unavailableFilesCount")
+
+    if mode not in {"workingTree", "branch"} or not isinstance(include_untracked, bool):
+        return None
+    counts = (changed_files_count, selected_files_count, unavailable_files_count)
+    if any(not isinstance(count, int) or isinstance(count, bool) or count < 0 for count in counts):
+        return None
+
+    base_ref = raw_git_diff.get("baseRef")
+    if base_ref is not None and not isinstance(base_ref, str):
+        return None
+
+    return GitDiffInfo(
+        mode=mode,
+        include_untracked=include_untracked,
+        changed_files_count=changed_files_count,
+        selected_files_count=selected_files_count,
+        unavailable_files_count=unavailable_files_count,
+        base_ref=base_ref or None,
     )
 
 

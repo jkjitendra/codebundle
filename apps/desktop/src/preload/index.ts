@@ -7,6 +7,8 @@ import type {
   ExportProfilesResult,
   GeneratePreviewOptions,
   GeneratePreviewResult,
+  GitDiffOptions,
+  GitDiffResult,
   PrepareExportConfigResult,
   RecentProjectsResult,
   RevealPathResult,
@@ -55,6 +57,8 @@ const api: CodeBundleApi = {
     ipcRenderer.invoke("codebundle:delete-export-profile", id) as Promise<ExportProfilesResult>,
   markExportProfileUsed: (id: string) =>
     ipcRenderer.invoke("codebundle:mark-export-profile-used", id) as Promise<ExportProfilesResult>,
+  getGitDiffFiles: (options: GitDiffOptions) =>
+    ipcRenderer.invoke("codebundle:get-git-diff-files", options) as Promise<GitDiffResult>,
   getPathForFile: (file: File) => webUtils.getPathForFile(file)
 };
 

@@ -1,6 +1,6 @@
 import { readFile, readdir, lstat, stat, realpath } from "node:fs/promises";
 import { isAbsolute, join, relative, resolve } from "node:path";
-import type { CodeBundleExportConfig, GeneratePreviewResult, GitProjectInfo, PreviewResult } from "../shared/types";
+import type { CodeBundleExportConfig, GeneratePreviewResult, GitDiffExportInfo, GitProjectInfo, PreviewResult } from "../shared/types";
 import { assertSafeProjectRoot, isPathInside } from "./pathSecurity";
 
 const DEFAULT_MAX_PREVIEW_LINES = 500;
@@ -147,6 +147,7 @@ export async function generatePreview(input: unknown, deps: PreviewDependencies 
       builder.appendLine(`Total Files: ${entries.length}`);
       builder.appendLine("");
       appendGitSectionMarkdown(builder, config);
+      appendGitDiffSectionMarkdown(builder, config);
       builder.appendLine("---");
       builder.appendLine("");
     } else {
@@ -157,6 +158,7 @@ export async function generatePreview(input: unknown, deps: PreviewDependencies 
       builder.appendLine(`Total Files: ${entries.length}`);
       builder.appendLine("");
       appendGitSectionText(builder, config);
+      appendGitDiffSectionText(builder, config);
       builder.appendLine("---");
       builder.appendLine("");
     }
@@ -688,6 +690,54 @@ function appendGitSectionText(builder: PreviewBuilder, config: CodeBundleExportC
     builder.appendLine(`Working tree: ${workingTree}`);
   }
 
+  builder.appendLine("");
+}
+
+/**
+ * Format the Git diff mode label for display.
+ */
+function formatGitDiffModeLabel(gitDiff: GitDiffExportInfo): string {
+  if (gitDiff.mode === "branch") {
+    return `Branch vs ${gitDiff.baseRef ?? "base"}`;
+  }
+  return "Working tree vs HEAD";
+}
+
+/**
+ * Append the Git Diff section in Markdown format.
+ * Only appended when config.gitDiff is defined.
+ */
+function appendGitDiffSectionMarkdown(builder: PreviewBuilder, config: CodeBundleExportConfig): void {
+  const gitDiff = config.gitDiff;
+  if (!gitDiff) {
+    return;
+  }
+
+  builder.appendLine("## Git Diff");
+  builder.appendLine("");
+  builder.appendLine(`- Mode: ${formatGitDiffModeLabel(gitDiff)}`);
+  builder.appendLine(`- Changed files selected: ${gitDiff.selectedFilesCount}`);
+  builder.appendLine(`- Unavailable/skipped: ${gitDiff.unavailableFilesCount}`);
+  builder.appendLine(`- Include untracked: ${gitDiff.includeUntracked ? "yes" : "no"}`);
+  builder.appendLine("");
+}
+
+/**
+ * Append the Git Diff section in plain text format.
+ * Only appended when config.gitDiff is defined.
+ */
+function appendGitDiffSectionText(builder: PreviewBuilder, config: CodeBundleExportConfig): void {
+  const gitDiff = config.gitDiff;
+  if (!gitDiff) {
+    return;
+  }
+
+  builder.appendLine("Git Diff");
+  builder.appendLine("");
+  builder.appendLine(`Mode: ${formatGitDiffModeLabel(gitDiff)}`);
+  builder.appendLine(`Changed files selected: ${gitDiff.selectedFilesCount}`);
+  builder.appendLine(`Unavailable/skipped: ${gitDiff.unavailableFilesCount}`);
+  builder.appendLine(`Include untracked: ${gitDiff.includeUntracked ? "yes" : "no"}`);
   builder.appendLine("");
 }
 

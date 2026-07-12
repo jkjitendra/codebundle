@@ -70,7 +70,7 @@ Each saved profile stores:
 - Max file size, `.gitignore`, and symlink preferences.
 - `createdAt`, `updatedAt`, and optional `lastUsedAt` timestamps.
 
-Saved export profiles do not store file contents, preview content, exported output, secret values, tokens, passwords, or API keys.
+Saved export profiles do not store file contents, preview content, Git diff mode/base ref/counts, exported output, secret values, tokens, passwords, or API keys.
 
 The saved profile list is capped at 20 entries. Profiles are created only through an explicit user action (Save Current).
 
@@ -247,3 +247,14 @@ After a successful scan, CodeBundle reads basic Git context for the scanned proj
 - The Python exporter does not run Git. It only formats metadata already provided in the export config.
 - If Git is not installed or the project is not a Git repository, the scan still succeeds. The UI badge reflects the unavailable or non-repo state.
 - Git metadata is included in the export config (written to the OS temp directory) only when it was successfully detected. It follows the same temp file lifecycle as other config data.
+
+## Git Diff-Only Selection
+
+Git diff-only export is local-only. It reads local Git file path/status metadata to replace the tree selection with changed files; it never reads or exports patch contents through Git.
+
+- Commands use the local `git` executable through `child_process.execFile` with argument arrays, never a shell.
+- It does not fetch remotes, switch branches, stage changes, commit, or otherwise mutate the repository.
+- Returned paths are normalized and validated inside the scanned `projectRoot`, including when that root is a subfolder of a repository.
+- Deleted files, malformed entries, and paths outside the selected project root are counted/skipped and never selected.
+- The normal local secret scan still runs before preview and export; diff-only selection does not bypass it.
+- Saved profiles never store `gitDiff`, base refs, changed-file counts, or unavailable-file counts. They may store manually saved selected paths.

@@ -35,5 +35,12 @@
     "shortCommit": "abc1234",
     "isDetachedHead": false,
     "hasTrackedChanges": false
+  },
+  "gitDiff": {
+    "mode": "workingTree",
+    "includeUntracked": false,
+    "changedFilesCount": 8,
+    "selectedFilesCount": 8,
+    "unavailableFilesCount": 0
   }
 }

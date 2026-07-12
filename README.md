@@ -69,6 +69,7 @@ Development mode requires Python 3.10+. You can set `CODEBUNDLE_PYTHON_PATH` to 
 - Saved export profiles for reusable project/export selections.
 - Local Python sidecar/exporter execution.
 - Git branch and commit metadata in previews and exports.
+- Git diff-only selection for exporting changed files.
 
 ## Python CLI Usage
 
@@ -114,10 +115,10 @@ codebundle/
 - Python reads file contents only during export.
 - Secret scanning is local-only and returns redacted findings.
 - Export preview is generated locally, truncated, not persisted, and not written to the output file.
-- Git metadata is read locally through Git. Remote URLs are not collected, Git hosting providers are not contacted, and branch switching commands are not run.
+- Git metadata and optional diff-only file selection are read locally through Git. Remote URLs are not collected, Git hosting providers are not contacted, and branch switching commands are not run.
 - Drag-and-drop folder paths are validated in the Electron main process.
 - Recent projects are local metadata only. They store folder paths, folder display names, and timestamps, not file contents, selected files, secrets, tokens, or API keys.
-- Saved export profiles are local configuration metadata only. They store profile names, project/output paths, selected relative paths, exclude text, and export options, never file contents, preview content, exported output, secret values, tokens, passwords, or API keys.
+- Saved export profiles are local configuration metadata only. They store profile names, project/output paths, selected relative paths, exclude text, and export options, never file contents, preview content, Git diff metadata, exported output, secret values, tokens, passwords, or API keys.
 - Default excludes skip `.env`, keys, credentials, `.git`, `node_modules`, build outputs, lock files, and common binary formats.
 - Dangerous roots such as `/`, `/etc`, `/usr`, `/System`, `/Library`, and Windows system roots are blocked.
 - Path traversal attempts are rejected.

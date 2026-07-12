@@ -832,3 +832,59 @@ describe("generatePreview — Git section in Text format", () => {
   });
 });
 
+describe("generatePreview — Git Diff section", () => {
+  const gitDiff = {
+    mode: "workingTree" as const,
+    includeUntracked: false,
+    changedFilesCount: 8,
+    selectedFilesCount: 6,
+    unavailableFilesCount: 2
+  };
+
+  it("includes matching Markdown Git Diff metadata", async () => {
+    const result = await generatePreview(
+      { config: makeConfig({ gitDiff }), maxPreviewLines: 500, maxPreviewBytes: 200_000 },
+      stubDeps()
+    );
+
+    expect(result.success).toBe(true);
+    if (!result.success) return;
+    expect(result.preview.content).toContain("## Git Diff");
+    expect(result.preview.content).toContain("- Mode: Working tree vs HEAD");
+    expect(result.preview.content).toContain("- Changed files selected: 6");
+    expect(result.preview.content).toContain("- Unavailable/skipped: 2");
+    expect(result.preview.content).toContain("- Include untracked: no");
+  });
+
+  it("includes matching text Git Diff metadata and branch base ref", async () => {
+    const result = await generatePreview(
+      {
+        config: makeConfig({
+          format: "text",
+          gitDiff: { ...gitDiff, mode: "branch", baseRef: "main", includeUntracked: true }
+        }),
+        maxPreviewLines: 500,
+        maxPreviewBytes: 200_000
+      },
+      stubDeps()
+    );
+
+    expect(result.success).toBe(true);
+    if (!result.success) return;
+    expect(result.preview.content).toContain("\nGit Diff\n");
+    expect(result.preview.content).toContain("Mode: Branch vs main");
+    expect(result.preview.content).toContain("Include untracked: yes");
+    expect(result.preview.content).not.toContain("- Mode:");
+  });
+
+  it("omits Git Diff when no diff-only selection metadata exists", async () => {
+    const result = await generatePreview(
+      { config: makeConfig(), maxPreviewLines: 500, maxPreviewBytes: 200_000 },
+      stubDeps()
+    );
+
+    expect(result.success).toBe(true);
+    if (!result.success) return;
+    expect(result.preview.content).not.toContain("Git Diff");
+  });
+});

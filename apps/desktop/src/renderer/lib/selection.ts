@@ -1,4 +1,4 @@
-import type { CodeBundleConfigPreview, FileTreeNode, GitProjectInfo } from "./types";
+import type { CodeBundleConfigPreview, FileTreeNode, GitDiffExportInfo, GitProjectInfo } from "./types";
 import { EXPORT_HEADER_OVERHEAD_BYTES, PER_FILE_MARKDOWN_OVERHEAD_BYTES, estimateTokenCount } from "./tokenEstimate";
 import type { TreeIndex } from "./treeUtils";
 
@@ -178,6 +178,7 @@ export function buildConfigPreview(options: {
   respectGitIgnore: boolean;
   followSymlinks: boolean;
   git?: GitProjectInfo;
+  gitDiff?: GitDiffExportInfo;
 }): CodeBundleConfigPreview {
   const folders = compactSelectedFolders(options.selection).sort((left, right) => left.localeCompare(right));
   const files = [...options.selection.selectedFiles]
@@ -202,7 +203,8 @@ export function buildConfigPreview(options: {
     skipBinaryFiles: true,
     respectGitIgnore: options.respectGitIgnore,
     followSymlinks: options.followSymlinks,
-    git: options.git
+    git: options.git,
+    gitDiff: options.gitDiff
   };
 }
 
