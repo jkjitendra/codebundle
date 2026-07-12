@@ -4,7 +4,7 @@ import json
 import subprocess
 import sys
 
-from codebundle_exporter.config import GitInfo, parse_config
+from codebundle_exporter.config import GitDiffInfo, GitInfo, parse_config
 from codebundle_exporter.scanner import FileEntry
 from codebundle_exporter.writer import ExportedFile, render_markdown, render_text, write_export
 
@@ -40,6 +40,18 @@ def make_git_info(**kwargs) -> GitInfo:
     }
     defaults.update(kwargs)
     return GitInfo(**defaults)
+
+
+def make_git_diff_info(**kwargs) -> GitDiffInfo:
+    defaults = {
+        "mode": "workingTree",
+        "include_untracked": False,
+        "changed_files_count": 8,
+        "selected_files_count": 6,
+        "unavailable_files_count": 2,
+    }
+    defaults.update(kwargs)
+    return GitDiffInfo(**defaults)
 
 
 def test_markdown_output(tmp_path):
@@ -325,3 +337,93 @@ def test_older_config_without_git_field_still_works(tmp_path):
 
     assert "## File 1:" in content
     assert "## Git" not in content
+
+
+# ---------------------------------------------------------------------------
+# Git Diff section tests
+# ---------------------------------------------------------------------------
+
+
+def test_markdown_includes_git_diff_section(tmp_path):
+    git_diff = make_git_diff_info()
+    output = render_markdown(
+        tmp_path,
+        [ExportedFile("src/app.ts", "x\n")],
+        git_diff_info=git_diff,
+    )
+
+    assert "## Git Diff" in output
+    assert "- Mode: Working tree vs HEAD" in output
+    assert "- Changed files selected: 6" in output
+    assert "- Unavailable/skipped: 2" in output
+    assert "- Include untracked: no" in output
+
+
+def test_text_includes_git_diff_section(tmp_path):
+    git_diff = make_git_diff_info(mode="branch", base_ref="main", include_untracked=True)
+    output = render_text(
+        tmp_path,
+        [ExportedFile("src/app.ts", "x\n")],
+        git_diff_info=git_diff,
+    )
+
+    assert "\nGit Diff\n" in output
+    assert "Mode: Branch vs main" in output
+    assert "Changed files selected: 6" in output
+    assert "Unavailable/skipped: 2" in output
+    assert "Include untracked: yes" in output
+    assert "- Mode:" not in output
+
+
+def test_omits_git_diff_section_when_missing(tmp_path):
+    output = render_markdown(tmp_path, [ExportedFile("src/app.ts", "x\n")])
+
+    assert "Git Diff" not in output
+
+
+def test_older_config_without_git_diff_still_works(tmp_path):
+    config = make_config(tmp_path, tmp_path / "out.md")
+
+    assert config.git_diff is None
+    output = render_markdown(tmp_path, [ExportedFile("src/app.ts", "x\n")], git_diff_info=config.git_diff)
+    assert "Git Diff" not in output
+
+
+def test_parse_config_keeps_valid_git_diff_metadata(tmp_path):
+    config = make_config(
+        tmp_path,
+        tmp_path / "out.md",
+        gitDiff={
+            "mode": "branch",
+            "baseRef": "main",
+            "includeUntracked": True,
+            "changedFilesCount": 8,
+            "selectedFilesCount": 6,
+            "unavailableFilesCount": 2,
+        },
+    )
+
+    assert config.git_diff == GitDiffInfo(
+        mode="branch",
+        base_ref="main",
+        include_untracked=True,
+        changed_files_count=8,
+        selected_files_count=6,
+        unavailable_files_count=2,
+    )
+
+
+def test_malformed_git_diff_is_ignored(tmp_path):
+    config = make_config(
+        tmp_path,
+        tmp_path / "out.md",
+        gitDiff={
+            "mode": "workingTree",
+            "includeUntracked": True,
+            "changedFilesCount": -1,
+            "selectedFilesCount": 0,
+            "unavailableFilesCount": 0,
+        },
+    )
+
+    assert config.git_diff is None
