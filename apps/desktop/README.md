@@ -104,7 +104,7 @@ https://github.com/jkjitendra/codebundle/releases/latest
 
 1. Choose a project folder.
 2. Scan the project.
-3. Select files and folders in the file tree.
+3. Select files and folders in the file tree, or use Git Diff to replace the selection with changed files.
 4. Edit exclude patterns if needed.
 5. Choose an output `.md` or `.txt` file.
 6. Click `Run Export`.
@@ -161,6 +161,12 @@ Git metadata is also included in previews and final Python exports:
 Git detection runs in the Electron main process using `git rev-parse` and `git status --porcelain=v1 --untracked-files=no`. Each command has a 2-second timeout. Git failures never block scanning or export. The renderer never runs Git.
 
 The Python exporter never runs Git — it formats only the metadata already provided in the export config.
+
+## Git Diff-Only Selection
+
+Git diff-only selection for exporting changed files is available after a successful scan of a Git worktree. Choose working-tree changes versus `HEAD`, or compare the current branch with a local base ref. Optionally include untracked files, then click **Select changed files** to replace the tree selection. Deleted, excluded, invalid, and missing paths are counted but not selected.
+
+The app reads local path/status metadata only with `execFile`; it never reads patch contents, fetches remotes, switches branches, stages changes, commits, or mutates the repository. The normal local secret scan still runs before preview and export. Saved profiles retain manually selected paths but never store Git diff mode, base ref, or counts.
 
 ## Known Limitations
 
