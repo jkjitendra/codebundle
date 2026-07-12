@@ -4,6 +4,7 @@ import { tmpdir } from "node:os";
 import { dirname, isAbsolute, join, resolve } from "node:path";
 import type {
   CodeBundleExportConfig,
+  GitDiffExportInfo,
   GitProjectInfo,
   PreparedExportSummary,
   PrepareExportConfigFailure,
@@ -158,7 +159,8 @@ async function validateExportConfig(input: unknown): Promise<CodeBundleExportCon
     skipBinaryFiles,
     respectGitIgnore,
     followSymlinks,
-    git: sanitizeGitInfo(input.git)
+    git: sanitizeGitInfo(input.git),
+    gitDiff: sanitizeGitDiffInfo(input.gitDiff)
   };
 }
 
@@ -279,4 +281,59 @@ export function sanitizeGitInfo(value: unknown): GitProjectInfo | undefined {
   }
 
   return result;
+}
+
+// ---------------------------------------------------------------------------
+// GitDiff info sanitizer — whitelist only known fields, validate counts
+// ---------------------------------------------------------------------------
+
+const VALID_GIT_DIFF_MODES = new Set(["workingTree", "branch"]);
+const GIT_DIFF_BASE_REF_MAX = 200;
+
+/**
+ * Sanitize and whitelist Git diff metadata from an IPC config payload.
+ * Only known fields are passed through; unknown properties are dropped.
+ * Counts must be non-negative integers. Mode must be a known value.
+ * Returns undefined if input is not a valid object or has invalid required fields.
+ */
+export function sanitizeGitDiffInfo(value: unknown): GitDiffExportInfo | undefined {
+  if (!isRecord(value)) {
+    return undefined;
+  }
+
+  const mode = value.mode;
+  if (!VALID_GIT_DIFF_MODES.has(mode as string)) {
+    return undefined;
+  }
+
+  const includeUntracked = value.includeUntracked;
+  if (typeof includeUntracked !== "boolean") {
+    return undefined;
+  }
+
+  const changedFilesCount = value.changedFilesCount;
+  const selectedFilesCount = value.selectedFilesCount;
+  const unavailableFilesCount = value.unavailableFilesCount;
+
+  if (!isNonNegativeInteger(changedFilesCount)) return undefined;
+  if (!isNonNegativeInteger(selectedFilesCount)) return undefined;
+  if (!isNonNegativeInteger(unavailableFilesCount)) return undefined;
+
+  const result: GitDiffExportInfo = {
+    mode: mode as GitDiffExportInfo["mode"],
+    includeUntracked,
+    changedFilesCount,
+    selectedFilesCount,
+    unavailableFilesCount
+  };
+
+  if (typeof value.baseRef === "string" && value.baseRef.length > 0) {
+    result.baseRef = value.baseRef.slice(0, GIT_DIFF_BASE_REF_MAX);
+  }
+
+  return result;
+}
+
+function isNonNegativeInteger(value: unknown): value is number {
+  return typeof value === "number" && Number.isInteger(value) && value >= 0;
 }
