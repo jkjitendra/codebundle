@@ -1,5 +1,10 @@
 import { describe, expect, it, vi } from "vitest";
-import { handleDroppedProjectFolder, removeRecentProjectPath, selectRecentProjectPath } from "../src/renderer/App";
+import {
+  getSuggestedOutputFile,
+  handleDroppedProjectFolder,
+  removeRecentProjectPath,
+  selectRecentProjectPath
+} from "../src/renderer/App";
 import {
   DEFAULT_DROP_ERROR_MESSAGE,
   getDroppedFilePath,
@@ -165,5 +170,17 @@ describe("dropped project folder UI flow", () => {
 
     expect(removeRecentProject).toHaveBeenCalledWith("/Users/user/projects/old");
     expect(setRecentProjects).toHaveBeenCalledWith(projects);
+  });
+
+  it("builds the default output beside a POSIX project folder", () => {
+    expect(getSuggestedOutputFile("/Users/user/projects/CodeBundle")).toBe(
+      "/Users/user/projects/CodeBundle/CodeBundle-changes.md"
+    );
+  });
+
+  it("preserves Windows separators and ignores a trailing separator", () => {
+    expect(getSuggestedOutputFile("C:\\Projects\\My App\\")).toBe(
+      "C:\\Projects\\My App\\My App-changes.md"
+    );
   });
 });

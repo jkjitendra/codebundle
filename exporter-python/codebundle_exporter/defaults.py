@@ -13,6 +13,7 @@ DEFAULT_EXCLUDES: tuple[str, ...] = (
     "coverage/**",
     "__pycache__/**",
     ".venv/**",
+    ".venv-build/**",
     "venv/**",
     "target/**",
     "out/**",

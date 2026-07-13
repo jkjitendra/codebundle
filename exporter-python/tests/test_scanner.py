@@ -104,7 +104,7 @@ def test_include_mode_prunes_default_excluded_directories(tmp_path):
     assert result.summary.skippedExcluded == 1
 
 
-def test_include_mode_prunes_custom_excluded_directories(tmp_path):
+def test_include_mode_prunes_venv_build_by_default(tmp_path):
     write(tmp_path / "src" / "app.ts", "const app = true;")
     write(tmp_path / ".venv-build" / "bin" / "python.ts", "python")
     config = make_config(
@@ -112,7 +112,6 @@ def test_include_mode_prunes_custom_excluded_directories(tmp_path):
         tmp_path / "out.md",
         mode="include",
         include=["**/*.ts"],
-        exclude=[".venv-build"],
         respectGitIgnore=False,
     )
 

@@ -23,6 +23,8 @@ export const DEFAULT_EXCLUDES: readonly string[] = [
   ".pytest_cache",
   ".venv/**",
   ".venv",
+  ".venv-build/**",
+  ".venv-build",
   "venv/**",
   "venv",
   "target/**",
