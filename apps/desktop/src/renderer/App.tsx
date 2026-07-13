@@ -10,6 +10,7 @@ import { InlineInfo } from "./components/InlineInfo";
 import { LocalFirstInfo } from "./components/LocalFirstInfo";
 import { ProjectPicker } from "./components/ProjectPicker";
 import { SavedExportProfiles } from "./components/SavedExportProfiles";
+import { SelectedFilesModal } from "./components/SelectedFilesModal";
 import { SecretScanWarning } from "./components/SecretScanWarning";
 import { restoreProfileSelection } from "./lib/profileSelection";
 import { buildGitDiffSelection } from "./lib/gitDiffSelection";
@@ -20,6 +21,7 @@ import {
   getSelectionSummary,
   isFileSelected,
   selectPaths,
+  toggleFileSelection,
   toggleNodeSelection
 } from "./lib/selection";
 import { formatBytes, formatTokenCount, getContextBadges } from "./lib/tokenEstimate";
@@ -105,6 +107,20 @@ export function selectRecentProjectPath(path: string, options: RecentProjectSele
   options.resetProjectState();
 }
 
+export function getSuggestedOutputFile(projectFolder: string): string {
+  const normalizedFolder = projectFolder.trim().replace(/[\\/]+$/, "");
+  if (!normalizedFolder) {
+    return "";
+  }
+
+  const pathParts = normalizedFolder.split(/[\\/]/).filter(Boolean);
+  const projectName = pathParts[pathParts.length - 1] ?? "project";
+  const lastForwardSlash = normalizedFolder.lastIndexOf("/");
+  const lastBackslash = normalizedFolder.lastIndexOf("\\");
+  const separator = lastBackslash > lastForwardSlash ? "\\" : "/";
+  return `${normalizedFolder}${separator}${projectName}-changes.md`;
+}
+
 interface RecentProjectRemovalOptions {
   removeRecentProject: (path: string) => Promise<RecentProjectsResult>;
   setRecentProjects: (projects: RecentProject[]) => void;
@@ -153,8 +169,10 @@ export default function App(): JSX.Element {
   const [isGeneratingPreview, setIsGeneratingPreview] = useState(false);
   const [previewResult, setPreviewResult] = useState<PreviewResult | null>(null);
   const [showPreviewModal, setShowPreviewModal] = useState(false);
+  const [showSelectedFilesModal, setShowSelectedFilesModal] = useState(false);
   const [isLoadingGitDiff, setIsLoadingGitDiff] = useState(false);
   const [activeGitDiffInfo, setActiveGitDiffInfo] = useState<GitDiffExportInfo | null>(null);
+  const shouldUpdateOutputOnNextScanRef = useRef(false);
   const pendingProfileSelectionRef = useRef<{
     profileId: string;
     projectRoot: string;
@@ -181,6 +199,12 @@ export default function App(): JSX.Element {
     [defaultExcludes, excludePatterns]
   );
   const selectionSummary = useMemo(() => getSelectionSummary(selection, treeIndex), [selection, treeIndex]);
+  const selectedFilePaths = useMemo(
+    () => treeIndex.filePaths.filter((relativePath) => isFileSelected(relativePath, selection, treeIndex)),
+    [selection, treeIndex]
+  );
+  const activeProjectPath = scanResult?.projectRoot ?? projectFolder;
+  const activeProjectName = getProjectName(activeProjectPath);
   const outputFormat = outputFile?.toLowerCase().endsWith(".txt") ? "text" : "markdown";
   const canPrepareExport =
     Boolean(projectFolder && outputFile && scanResult && selectionSummary.estimatedExportFileCount > 0) &&
@@ -285,6 +309,7 @@ export default function App(): JSX.Element {
       const selectedFolder = await window.codeBundle.chooseProjectFolder();
       if (selectedFolder) {
         setProjectFolder(selectedFolder);
+        shouldUpdateOutputOnNextScanRef.current = true;
         resetProjectState();
       }
     } catch (caughtError) {
@@ -294,6 +319,7 @@ export default function App(): JSX.Element {
 
   function updateProjectFolder(value: string): void {
     setProjectFolder(value.length > 0 ? value : null);
+    shouldUpdateOutputOnNextScanRef.current = value.length > 0;
     resetProjectState();
   }
 
@@ -310,6 +336,7 @@ export default function App(): JSX.Element {
     setExpandedFolders(new Set());
     setWarnings([]);
     setActiveGitDiffInfo(null);
+    setShowSelectedFilesModal(false);
   }
 
   async function handleFolderDropped(droppedPath: string): Promise<FolderDropResult> {
@@ -319,7 +346,11 @@ export default function App(): JSX.Element {
         validateDroppedFolder: window.codeBundle.validateDroppedFolder,
         confirmHomeDirectory: () =>
           window.confirm("Scanning your home directory can include many personal files. Continue?"),
-        setProjectFolder,
+        setProjectFolder: (folder) => {
+          setProjectFolder(folder);
+          updateOutputFile(getSuggestedOutputFile(folder));
+          shouldUpdateOutputOnNextScanRef.current = false;
+        },
         resetProjectState,
         scanProjectFolder
       });
@@ -366,6 +397,7 @@ export default function App(): JSX.Element {
     setError(null);
     setWarnings([]);
     setActiveGitDiffInfo(null);
+    setShowSelectedFilesModal(false);
     setIsScanning(true);
 
     try {
@@ -448,10 +480,15 @@ export default function App(): JSX.Element {
       return;
     }
 
+    if (shouldUpdateOutputOnNextScanRef.current) {
+      updateOutputFile(getSuggestedOutputFile(projectFolder));
+      shouldUpdateOutputOnNextScanRef.current = false;
+    }
     await scanProjectFolder(projectFolder, allowHomeDirectory);
   }
 
   function selectRecentProject(path: string): void {
+    shouldUpdateOutputOnNextScanRef.current = true;
     selectRecentProjectPath(path, { setProjectFolder, resetProjectState });
   }
 
@@ -510,6 +547,7 @@ export default function App(): JSX.Element {
   function handleLoadProfile(profile: SavedExportProfile): void {
     setProjectFolder(profile.projectRoot);
     setOutputFile(profile.outputFile);
+    shouldUpdateOutputOnNextScanRef.current = false;
     setMaxFileSizeKb(profile.maxFileSizeKb);
     setRespectGitIgnore(profile.respectGitIgnore);
     setFollowSymlinks(profile.followSymlinks);
@@ -589,6 +627,23 @@ export default function App(): JSX.Element {
     setConfigPreview(null);
     setActiveGitDiffInfo(null);
     setSelection(clearSelection());
+  }
+
+  function handleDeselectSelectedFile(path: string): void {
+    if (!isFileSelected(path, selection, treeIndex)) {
+      return;
+    }
+
+    setPrepareResult(null);
+    setExportResult(null);
+    setRevealError(null);
+    setCopyStatus(null);
+    setToast(null);
+    setConfigPreview(null);
+    setPreviewResult(null);
+    setShowPreviewModal(false);
+    setActiveGitDiffInfo(null);
+    setSelection((current) => toggleFileSelection(path, current, treeIndex));
   }
 
   async function handleSelectGitDiffFiles(options: {
@@ -695,7 +750,7 @@ export default function App(): JSX.Element {
   }
 
   function getSelectedRelativeFilePaths(): string[] {
-    return treeIndex.filePaths.filter((relativePath) => isFileSelected(relativePath, selection, treeIndex));
+    return selectedFilePaths;
   }
 
   async function runSecretScanThenAct(nextConfigPreview: CodeBundleConfigPreview, action: PendingAction): Promise<void> {
@@ -958,6 +1013,14 @@ export default function App(): JSX.Element {
             onConfirmExport={handlePreviewConfirmExport}
           />
         ) : null}
+        {showSelectedFilesModal ? (
+          <SelectedFilesModal
+            projectName={activeProjectName}
+            files={selectedFilePaths}
+            onClose={() => setShowSelectedFilesModal(false)}
+            onDeselect={handleDeselectSelectedFile}
+          />
+        ) : null}
         {toast ? (
           <ExportToast
             kind={toast.kind}
@@ -1150,8 +1213,32 @@ export default function App(): JSX.Element {
           <section style={styles.filesPanel}>
             <div style={styles.filesHeader}>
               <div style={styles.filesTitleBlock}>
-                <h2 style={styles.filesHeading}>Files</h2>
+                <div style={styles.filesHeadingRow}>
+                  <h2 style={styles.filesHeading}>Files</h2>
+                  <span style={styles.projectNameBadge} title={activeProjectPath ?? undefined}>
+                    Project: {activeProjectName}
+                  </span>
+                </div>
                 <p style={styles.panelCopy}>Scan a project, then choose files and folders for a future export.</p>
+                <div style={styles.filesWorkflowControls}>
+                  <GitDiffSelector
+                    git={scanResult?.git}
+                    disabled={!scanResult || isScanning}
+                    isLoading={isLoadingGitDiff}
+                    onSelectChangedFiles={handleSelectGitDiffFiles}
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowSelectedFilesModal(true)}
+                    disabled={!scanResult || selectedFilePaths.length === 0}
+                    style={{
+                      ...styles.selectedFilesButton,
+                      ...(!scanResult || selectedFilePaths.length === 0 ? styles.selectedFilesButtonDisabled : {})
+                    }}
+                  >
+                    Review selected files ({selectedFilePaths.length.toLocaleString("en-US")})
+                  </button>
+                </div>
               </div>
               <div style={styles.filesStats}>
                 <div style={styles.filesEstimate}>
@@ -1191,12 +1278,6 @@ export default function App(): JSX.Element {
                   </p>
                 ) : null}
                 <GitInfoBadge git={scanResult?.git} />
-                <GitDiffSelector
-                  git={scanResult?.git}
-                  disabled={!scanResult || isScanning}
-                  isLoading={isLoadingGitDiff}
-                  onSelectChangedFiles={handleSelectGitDiffFiles}
-                />
               </div>
             </div>
 
@@ -1271,6 +1352,13 @@ function cleanScannerError(message: string): string {
   return message.replace(/^Error invoking remote method '[^']+': Error: /, "");
 }
 
+function getProjectName(projectPath: string | null | undefined): string {
+  if (!projectPath) {
+    return "No project selected";
+  }
+  const parts = projectPath.replace(/[\\/]+$/, "").split(/[\\/]/).filter(Boolean);
+  return parts[parts.length - 1] ?? "Project";
+}
 
 const styles = {
   shell: {
@@ -1418,6 +1506,12 @@ const styles = {
     flex: "1 1 360px",
     minWidth: 0
   },
+  filesHeadingRow: {
+    display: "flex",
+    alignItems: "center",
+    flexWrap: "wrap" as const,
+    gap: 10
+  },
   filesHeading: {
     margin: 0,
     color: "#101828",
@@ -1425,11 +1519,52 @@ const styles = {
     fontWeight: 900,
     letterSpacing: 0
   },
+  projectNameBadge: {
+    display: "inline-flex",
+    alignItems: "center",
+    minHeight: 26,
+    maxWidth: "100%",
+    padding: "0 10px",
+    border: "1px solid #c7d7ef",
+    borderRadius: 999,
+    background: "#f0f6ff",
+    color: "#294f83",
+    fontSize: 12,
+    fontWeight: 750,
+    overflow: "hidden",
+    textOverflow: "ellipsis",
+    whiteSpace: "nowrap" as const
+  },
   panelCopy: {
     margin: "8px 0 0",
     color: "#667085",
     fontSize: 15,
     lineHeight: 1.45
+  },
+  filesWorkflowControls: {
+    display: "flex",
+    alignItems: "flex-start",
+    flexWrap: "wrap" as const,
+    gap: 12,
+    marginTop: 14
+  },
+  selectedFilesButton: {
+    alignSelf: "center",
+    minHeight: 38,
+    padding: "0 14px",
+    border: "1px solid #1d7f5f",
+    borderRadius: 10,
+    background: "#ffffff",
+    color: "#166b50",
+    cursor: "pointer",
+    fontSize: 13,
+    fontWeight: 800
+  },
+  selectedFilesButtonDisabled: {
+    borderColor: "#e4e8f0",
+    background: "#f2f4f7",
+    color: "#98a2b3",
+    cursor: "not-allowed"
   },
   filesStats: {
     display: "grid",
