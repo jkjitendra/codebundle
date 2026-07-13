@@ -51,6 +51,7 @@ describe("scanFiles excludes", () => {
     "build",
     ".git",
     ".venv",
+    ".venv-build",
     "venv",
     "coverage"
   ])("excludes %s by default", async (directoryName) => {
@@ -145,23 +146,6 @@ describe("scanFiles excludes", () => {
     expect(result.summary.totalFiles).toBe(1);
     expect(result.summary.skippedExcluded).toBeGreaterThanOrEqual(1);
     await rm(parent, { recursive: true, force: true });
-  });
-
-  it("excludes .venv-build directories and descendants from a bare directory pattern", async () => {
-    const root = await createFixture();
-    await createExcludedDirectory(root, ".venv-build/bin");
-
-    const result = await scanProject({
-      projectRoot: root,
-      maxFileSizeKb: 500,
-      exclude: [".venv-build"],
-      respectGitIgnore: false,
-      followSymlinks: false
-    });
-
-    expect(result.nodes.some((node) => node.path.includes(".venv-build"))).toBe(false);
-    expect(result.summary.skippedExcluded).toBeGreaterThanOrEqual(1);
-    await rm(root, { recursive: true, force: true });
   });
 
   it("excludes package-lock.json by default in nested app folders", async () => {
