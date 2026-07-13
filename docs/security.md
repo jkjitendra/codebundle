@@ -94,7 +94,7 @@ CodeBundle applies default excludes for common sensitive, generated, dependency,
 - `.git/**`
 - `node_modules/**`
 - build outputs such as `dist/**`, `build/**`, `.next/**`, `coverage/**`, and `out/**`
-- virtualenv/cache paths such as `.venv/**`, `venv/**`, and `__pycache__/**`
+- virtualenv/cache paths such as `.venv/**`, `.venv-build/**`, `venv/**`, and `__pycache__/**`
 - `.env` and `.env.*`
 - keys and credentials such as `*.pem`, `*.key`, `credentials.json`, and `service-account.json`
 - lock files such as `package-lock.json`, `yarn.lock`, and `pnpm-lock.yaml`
