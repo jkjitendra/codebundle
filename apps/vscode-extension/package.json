@@ -1,8 +1,7 @@
 {
   "name": "codebundler-vscode",
-  "displayName": "CodeBundler",
+  "displayName": "CodeBundler: Local Code Export",
   "version": "0.1.0",
-  "private": true,
   "publisher": "drostwades",
   "description": "Local-first CodeBundler exports from VS Code.",
   "license": "MIT",
