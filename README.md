@@ -163,6 +163,8 @@ npm run sidecar:verify
 npm run package:dir
 ```
 
+The bundled Python sidecar is built per operating system. `sidecar:verify` runs a local temporary export smoke test and checks the sidecar's JSON result and generated content before packaging. Generated sidecars are ignored by Git. Packaged desktop users do not need Python; development mode still uses local Python.
+
 Create a public release by pushing a `v*` tag, for example:
 
 ```bash
