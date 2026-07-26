@@ -66,12 +66,22 @@ cd apps/desktop
 npm run sidecar:build
 ```
 
-The build uses PyInstaller and writes to:
+The build uses PyInstaller in one-file mode and writes a platform-specific executable to:
 
 ```text
 resources/sidecars/current/codebundle-exporter
 resources/sidecars/current/codebundle-exporter.exe
 ```
+
+The executable name is `codebundle-exporter` on macOS/Linux and `codebundle-exporter.exe` on Windows. The build script removes the prior sidecar and PyInstaller build/spec output before each build, uses stable output folders, and prints the platform, Python executable, output path, and artifact size. Generated sidecars and PyInstaller outputs are ignored by Git and must not be committed.
+
+Verify the sidecar with a real isolated export smoke test:
+
+```bash
+npm run sidecar:verify
+```
+
+Verification runs the sidecar directly with a temporary config and tiny `README.md` / `src/app.py` fixture. It requires exactly one JSON-object stdout result with `success: true`, verifies the output file and selected file content, bounds stderr, and removes the temporary fixture and output afterwards. It makes no network calls.
 
 PyInstaller must be installed in the Python environment used to run the script:
 
@@ -104,7 +114,7 @@ npm run sidecar:verify
 npm run package:dir
 ```
 
-`package:dir` and `package` run `sidecar:verify` before electron-builder. Packaging fails if the platform sidecar is missing, so a broken package is not produced silently.
+`package:dir` and `package` run `sidecar:verify` before electron-builder. Packaging fails if the platform sidecar is missing or cannot complete the smoke export, so a broken package is not produced silently.
 
 The package config copies files from:
 
