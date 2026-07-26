@@ -2,6 +2,14 @@
 
 CodeBundle is local-first. It does not upload files, call cloud APIs, sync data, or store secrets.
 
+## VS Code Extension MVP
+
+The VS Code extension runs locally in the VS Code extension host and uses VS Code workspace file APIs to select files. It writes only a temporary JSON export config in the OS temp directory, then runs the existing Python exporter locally with `spawn` and an argument array; it never invokes a shell.
+
+There are no uploads, cloud services, telemetry, accounts, or remote calls. File contents are read locally only for the pre-export secret warning and by the exporter. Secret warning findings are redacted, capped, and never stored in VS Code global/workspace state, output logs, or temp config. The extension stores only safe settings such as Python path and export preferences.
+
+This MVP has no bundled Python sidecar and no Node-only exporter fallback. Python must be installed locally or configured with `codebundler.pythonPath`.
+
 ## Desktop Process Boundaries
 
 - The renderer does not access Node.js APIs directly.
