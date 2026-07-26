@@ -4,10 +4,11 @@
 
 CodeBundle bundles selected project files into one Markdown or text export for AI review, code sharing, automation, and CI/CD workflows.
 
-It has two local execution paths:
+It has three local execution paths:
 
 - Desktop app: an Electron UI for choosing a project folder, scanning files, selecting files/folders, choosing an output file, and running the local exporter.
 - Python CLI: a standalone automation tool that reads a JSON config and writes the final export.
+- VS Code extension: export selected workspace files directly from VS Code using the local exporter.
 
 With the desktop app, you can scan local projects, select files and folders, estimate export size and tokens, preview the export, get local secret warnings before preview/export, drag and drop a project folder, reuse recent projects, and export to Markdown or text.
 
@@ -71,6 +72,10 @@ Development mode requires Python 3.10+. You can set `CODEBUNDLE_PYTHON_PATH` to 
 - Git branch and commit metadata in previews and exports.
 - Git diff-only selection for exporting changed files.
 
+## VS Code Extension MVP
+
+The local-only **CodeBundler** VS Code extension exports the current file, open workspace files, or selected workspace files through the existing CodeBundle Python exporter. Python is required for this development MVP; there is no bundled sidecar yet. See the [VS Code Extension Guide](apps/vscode-extension/README.md).
+
 ## Python CLI Usage
 
 The Python exporter accepts a shared JSON config:
@@ -84,6 +89,7 @@ stdout contains exactly one JSON object so scripts and the desktop app can parse
 ## Documentation
 
 - [Desktop App Guide](apps/desktop/README.md)
+- [VS Code Extension Guide](apps/vscode-extension/README.md)
 - [Python Exporter Guide](exporter-python/README.md)
 - [Security Notes](docs/security.md)
 - [Desktop Packaging Notes](docs/desktop-packaging.md)
@@ -101,6 +107,9 @@ codebundle/
     tests/
   apps/
     desktop/
+      src/
+      tests/
+    vscode-extension/
       src/
       tests/
   shared/
