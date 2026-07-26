@@ -23,3 +23,4 @@ exporter-python/build/
 exporter-python/dist/
 exporter-python/*.spec
 .idea
+*.vsix
