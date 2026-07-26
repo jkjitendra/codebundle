@@ -58,9 +58,12 @@ process.resourcesPath/sidecars/codebundle-exporter.exe
 Build the sidecar on the target OS:
 
 ```bash
+npm run sidecar:clean
 npm run sidecar:build
 npm run sidecar:verify
 ```
+
+`sidecar:build` uses PyInstaller one-file mode, clears stale generated sidecar/PyInstaller files first, and reports the platform-specific artifact size. `sidecar:verify` runs a local temporary smoke export through the built executable and validates its JSON result and exported content; it cleans its fixture afterwards. Generated sidecars are ignored and should not be committed.
 
 The sidecar scripts use a Node wrapper that resolves Python in this order:
 
@@ -74,7 +77,7 @@ Create an unpacked package directory:
 npm run package:dir
 ```
 
-The package scripts do not silently build the sidecar. They verify that the sidecar exists before running electron-builder, so packaging fails clearly if `resources/sidecars/current/codebundle-exporter*` is missing.
+The package scripts do not silently build the sidecar. They verify the sidecar with a real smoke export before running electron-builder, so packaging fails clearly if `resources/sidecars/current/codebundle-exporter*` is missing or broken. Packaged users do not need Python; development mode still uses local Python and `PYTHONPATH`.
 
 Generate app icons after branding source changes:
 
