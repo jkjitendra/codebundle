@@ -66,7 +66,7 @@ async function resolveBundledSidecarCommand(options: {
   } catch {
     return failure(
       "EXPORTER_SIDECAR_NOT_FOUND",
-      "The bundled CodeBundle exporter was not found.",
+      "The bundled CodeBundle exporter sidecar is missing.",
       "Reinstall CodeBundle or run in development mode."
     );
   }
@@ -108,7 +108,7 @@ async function resolveDevPythonCommand(options: {
     return failure(
       "EXPORTER_PYTHON_NOT_FOUND",
       "The local Python exporter package was not found.",
-      "Expected exporter-python/codebundle_exporter next to apps/desktop."
+      "Run from the repository checkout with exporter-python available. Configure Python 3.10+ with CODEBUNDLE_PYTHON_PATH; the app sets PYTHONPATH automatically."
     );
   }
 
