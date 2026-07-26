@@ -7,6 +7,7 @@ Generated sidecars are intentionally ignored by Git. Build them on the target OS
 ```bash
 cd apps/desktop
 npm run sidecar:build
+npm run sidecar:verify
 ```
 
 Expected generated layout:
@@ -20,3 +21,5 @@ resources/
 ```
 
 Keep `.gitkeep` placeholders committed. Do not commit generated sidecar binaries unless a release process explicitly requires it.
+
+`sidecar:verify` performs a local smoke export with a temporary fixture, then removes the fixture and output. Sidecars make no network calls at build or runtime.
