@@ -61,6 +61,7 @@ describe("exporterCommandResolver", () => {
     expect(result.success).toBe(false);
     if (!result.success) {
       expect(result.error.code).toBe("EXPORTER_SIDECAR_NOT_FOUND");
+      expect(result.error.message).toContain("sidecar is missing");
     }
   });
 
@@ -132,6 +133,23 @@ describe("exporterCommandResolver", () => {
     expect(result.success).toBe(false);
     if (!result.success) {
       expect(result.error.code).toBe("PYTHON_NOT_FOUND");
+    }
+  });
+
+  it("guides development users to the local exporter and Python setup when the package is missing", async () => {
+    const result = await resolveExporterCommand({
+      isPackaged: false,
+      platform: "linux",
+      env: {},
+      resolvePython: async () => ({ success: true, command: { executable: "python3", baseArgs: [], version: "3.12.0" } }),
+      resolveExporterPythonPath: async () => null
+    });
+
+    expect(result.success).toBe(false);
+    if (!result.success) {
+      expect(result.error.code).toBe("EXPORTER_PYTHON_NOT_FOUND");
+      expect(result.error.details).toContain("CODEBUNDLE_PYTHON_PATH");
+      expect(result.error.details).toContain("PYTHONPATH");
     }
   });
 
