@@ -1,4 +1,4 @@
-# CodeBundler VS Code Extension (MVP)
+# CodeBundler: Local Code Export (VS Code Extension MVP)
 
 CodeBundler exports selected workspace files into one local Markdown or text bundle. It uses the existing CodeBundle Python exporter and makes no network, telemetry, cloud, account, or upload calls.
 
