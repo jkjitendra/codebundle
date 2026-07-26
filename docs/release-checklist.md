@@ -28,12 +28,14 @@ npm ci
 npm test
 npm run typecheck
 npm run build
+npm audit
+npm run sidecar:clean
 npm run sidecar:build
 npm run sidecar:verify
 npm run package:dir
 ```
 
-`package:dir` creates an unpacked app for local smoke testing. It verifies the sidecar before packaging, so the package fails clearly if `resources/sidecars/current/codebundle-exporter*` is missing.
+`sidecar:build` removes stale sidecar/PyInstaller output before building and reports the artifact size. `sidecar:verify` runs an isolated real export through the built executable, validates its single JSON stdout result and generated content, bounds stderr, and removes its temporary fixture. `package:dir` creates an unpacked app for local smoke testing and fails clearly if `resources/sidecars/current/codebundle-exporter*` is missing or fails verification.
 
 ## Create A Release
 

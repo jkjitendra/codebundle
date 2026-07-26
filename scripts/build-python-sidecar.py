@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import argparse
+import os
 import shutil
 import subprocess
 import sys
@@ -11,11 +12,28 @@ from pathlib import Path
 
 
 SIDECAR_BASE_NAME = "codebundle-exporter"
+# The exporter has no dependencies on these optional Python ecosystems. Keeping
+# this list conservative avoids bundling common developer-only modules without
+# changing the exporter runtime contract.
+PYINSTALLER_EXCLUDES = (
+    "IPython",
+    "ensurepip",
+    "jupyter",
+    "matplotlib",
+    "notebook",
+    "numpy",
+    "pandas",
+    "pip",
+    "pytest",
+    "setuptools",
+    "tkinter",
+    "wheel",
+)
 
 
 def main() -> int:
     parser = argparse.ArgumentParser(description="Build or clean the CodeBundle Python exporter sidecar.")
-    parser.add_argument("--clean", action="store_true", help="Remove generated sidecar/build outputs.")
+    parser.add_argument("--clean", action="store_true", help="Remove generated sidecar and PyInstaller outputs.")
     args = parser.parse_args()
 
     repo_root = Path(__file__).resolve().parents[1]
@@ -29,7 +47,7 @@ def main() -> int:
         return 0
 
     if not package_dir.is_dir():
-        print(f"CodeBundle exporter package was not found: {package_dir}", file=sys.stderr)
+        print(f"CodeBundle exporter source package was not found: {package_dir}", file=sys.stderr)
         return 1
 
     if not entrypoint_path.is_file():
@@ -44,9 +62,10 @@ def main() -> int:
         )
         return 1
 
-    sidecar_dir.mkdir(parents=True, exist_ok=True)
-    sidecar_name = f"{SIDECAR_BASE_NAME}.exe" if sys.platform.startswith("win") else SIDECAR_BASE_NAME
-    sidecar_path = sidecar_dir / sidecar_name
+    # A build must never accidentally pass by reusing a prior platform's binary.
+    clean_outputs(exporter_dir, sidecar_dir, announce=False)
+    sidecar_path = sidecar_dir / sidecar_executable_name(sys.platform)
+    build_path = exporter_dir / "build" / "pyinstaller"
 
     command = build_pyinstaller_command(
         python_executable=Path(sys.executable),
@@ -56,17 +75,21 @@ def main() -> int:
     )
 
     print("Building CodeBundle Python sidecar...")
-    print(" ".join(command))
-    completed = subprocess.run(command, cwd=repo_root, check=False)
+    completed = subprocess.run(command, cwd=repo_root, check=False, env=build_environment(exporter_dir))
     if completed.returncode != 0:
+        print("PyInstaller failed to build the CodeBundle sidecar.", file=sys.stderr)
         return completed.returncode
 
-    if not sidecar_path.exists():
+    if not sidecar_path.is_file():
         print(f"Expected sidecar was not created: {sidecar_path}", file=sys.stderr)
         return 1
 
-    print(f"Built sidecar: {sidecar_path}")
+    print_build_summary(sidecar_path=sidecar_path, build_path=build_path, dist_path=sidecar_dir)
     return 0
+
+
+def sidecar_executable_name(platform: str) -> str:
+    return f"{SIDECAR_BASE_NAME}.exe" if platform.startswith("win") else SIDECAR_BASE_NAME
 
 
 def build_pyinstaller_command(
@@ -76,11 +99,14 @@ def build_pyinstaller_command(
     entrypoint_path: Path,
     sidecar_dir: Path,
 ) -> list[str]:
-    return [
+    command = [
         str(python_executable),
         "-m",
         "PyInstaller",
         "--clean",
+        "--noconfirm",
+        "--log-level",
+        "WARN",
         "--onefile",
         "--name",
         SIDECAR_BASE_NAME,
@@ -94,8 +120,11 @@ def build_pyinstaller_command(
         str(exporter_dir),
         "--collect-submodules",
         "codebundle_exporter",
-        str(entrypoint_path),
     ]
+    for module in PYINSTALLER_EXCLUDES:
+        command.extend(["--exclude-module", module])
+    command.append(str(entrypoint_path))
+    return command
 
 
 def pyinstaller_available() -> bool:
@@ -108,7 +137,25 @@ def pyinstaller_available() -> bool:
     return completed.returncode == 0
 
 
-def clean_outputs(exporter_dir: Path, sidecar_dir: Path) -> None:
+def build_environment(exporter_dir: Path) -> dict[str, str]:
+    """Keep PyInstaller's platform cache inside the generated build output."""
+    environment = os.environ.copy()
+    environment.setdefault("PYINSTALLER_CONFIG_DIR", str(exporter_dir / "build" / "pyinstaller-cache"))
+    return environment
+
+
+def print_build_summary(*, sidecar_path: Path, build_path: Path, dist_path: Path) -> None:
+    size_mb = sidecar_path.stat().st_size / (1024 * 1024)
+    print("CodeBundle Python sidecar build complete.")
+    print(f"Platform: {sys.platform}")
+    print(f"Python: {sys.executable}")
+    print(f"Output: {sidecar_path}")
+    print(f"Size: {size_mb:.1f} MB")
+    print(f"Build path: {build_path}")
+    print(f"Dist path: {dist_path}")
+
+
+def clean_outputs(exporter_dir: Path, sidecar_dir: Path, *, announce: bool = True) -> None:
     for path in [
         exporter_dir / "build",
         exporter_dir / "dist",
@@ -127,7 +174,8 @@ def clean_outputs(exporter_dir: Path, sidecar_dir: Path) -> None:
             shutil.rmtree(path)
         else:
             path.unlink()
-    print("Cleaned CodeBundle sidecar outputs.")
+    if announce:
+        print("Cleaned CodeBundle sidecar outputs.")
 
 
 if __name__ == "__main__":
