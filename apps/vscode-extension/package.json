@@ -1,0 +1,103 @@
+{
+  "name": "codebundler-vscode",
+  "displayName": "CodeBundler",
+  "version": "0.1.0",
+  "private": true,
+  "publisher": "drostwades",
+  "description": "Local-first CodeBundler exports from VS Code.",
+  "license": "MIT",
+  "icon": "media/icon.png",
+  "categories": [
+    "Other"
+  ],
+  "keywords": [
+    "code export",
+    "markdown",
+    "text export",
+    "local first",
+    "code review"
+  ],
+  "pricing": "Free",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/jkjitendra/codebundle.git",
+    "directory": "apps/vscode-extension"
+  },
+  "bugs": {
+    "url": "https://github.com/jkjitendra/codebundle/issues"
+  },
+  "homepage": "https://github.com/jkjitendra/codebundle#readme",
+  "engines": {
+    "vscode": "^1.90.0"
+  },
+  "main": "./dist/extension.js",
+  "activationEvents": [
+    "onCommand:codebundler.exportCurrentFile",
+    "onCommand:codebundler.exportOpenFiles",
+    "onCommand:codebundler.exportWorkspaceSelection"
+  ],
+  "contributes": {
+    "commands": [
+      {
+        "command": "codebundler.exportCurrentFile",
+        "title": "CodeBundler: Export Current File"
+      },
+      {
+        "command": "codebundler.exportOpenFiles",
+        "title": "CodeBundler: Export Open Files"
+      },
+      {
+        "command": "codebundler.exportWorkspaceSelection",
+        "title": "CodeBundler: Export Selected Workspace Files"
+      }
+    ],
+    "configuration": {
+      "title": "CodeBundler",
+      "properties": {
+        "codebundler.pythonPath": {
+          "type": "string",
+          "default": "",
+          "description": "Optional Python executable path for running the CodeBundle exporter."
+        },
+        "codebundler.exporterPythonPath": {
+          "type": "string",
+          "default": "",
+          "description": "Optional path to the CodeBundle exporter-python source directory. Required for an installed Marketplace extension unless codebundle_exporter is otherwise available to Python."
+        },
+        "codebundler.maxFileSizeKb": {
+          "type": "number",
+          "default": 500,
+          "minimum": 1
+        },
+        "codebundler.respectGitIgnore": {
+          "type": "boolean",
+          "default": true
+        },
+        "codebundler.followSymlinks": {
+          "type": "boolean",
+          "default": false
+        },
+        "codebundler.excludePatterns": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "default": []
+        }
+      }
+    }
+  },
+  "scripts": {
+    "build": "tsc -p .",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "package": "vsce package"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.2",
+    "@types/vscode": "^1.90.0",
+    "@vscode/vsce": "^3.9.2",
+    "typescript": "^5.7.2",
+    "vitest": "^4.1.5"
+  }
+}
