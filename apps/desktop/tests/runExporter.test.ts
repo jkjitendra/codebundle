@@ -6,6 +6,7 @@ import {
   parseExporterResult,
   runExporter,
   runPythonExporter,
+  shouldUseNodeFallback,
   type RunPythonExporterOptions
 } from "../src/main/runExporter";
 
@@ -126,12 +127,21 @@ describe("runExporter process behavior", () => {
     expect(child.kill).toHaveBeenCalled();
   });
 
-  it("handles exporter-python path missing", async () => {
+  it("uses Node fallback when the local Python exporter package is missing", async () => {
+    const runNode = vi.fn(async () => ({
+      success: true as const,
+      outputFile: "/tmp/codebundle-output.md",
+      summary: { exportedFiles: 1, skippedBinary: 0, skippedLarge: 0, skippedExcluded: 0, skippedMissing: 0, skippedInvalid: 0 },
+      exporter: "node-fallback" as const,
+      fallbackReason: "EXPORTER_PYTHON_NOT_FOUND"
+    }));
     const result = await runExporter(
       {},
       {
         writeConfig: async () => ({ config: {} as never, tempConfigPath: "/tmp/config.codebundle.tmp.json" }),
         cleanupOldTempConfigs: async () => undefined,
+        cleanupTempConfig: async () => undefined,
+        runNode,
         resolveExporterCommand: async () => ({
           success: false,
           error: {
@@ -142,10 +152,31 @@ describe("runExporter process behavior", () => {
       }
     );
 
-    expect(result.success).toBe(false);
-    if (!result.success) {
-      expect(result.error.code).toBe("EXPORTER_PYTHON_NOT_FOUND");
-    }
+    expect(result.success).toBe(true);
+    expect(runNode).toHaveBeenCalledWith({}, { fallbackReason: "EXPORTER_PYTHON_NOT_FOUND" });
+  });
+
+  it("uses Node fallback only when the Python process cannot be launched", async () => {
+    const runNode = vi.fn(async () => parseExporterResult(successStdout, "", 0));
+    await runExporter({}, {
+      writeConfig: async () => ({ config: {} as never, tempConfigPath: "/tmp/config.codebundle.tmp.json" }), cleanupOldTempConfigs: async () => undefined,
+      cleanupTempConfig: async () => undefined, runNode,
+      resolveExporterCommand: async () => ({ success: true, command: { executable: "missing-python", argsPrefix: [], mode: "dev-python" } }),
+      runPython: async () => ({ success: false, error: { code: "EXPORTER_SPAWN_FAILED", message: "could not start" } })
+    });
+    expect(runNode).toHaveBeenCalledOnce();
+  });
+
+  it("does not mask ordinary Python exporter failures with a Node fallback", async () => {
+    const runNode = vi.fn(async () => parseExporterResult(successStdout, "", 0));
+    const result = await runExporter({}, {
+      writeConfig: async () => ({ config: {} as never, tempConfigPath: "/tmp/config.codebundle.tmp.json" }), cleanupOldTempConfigs: async () => undefined,
+      runNode,
+      resolveExporterCommand: async () => ({ success: true, command: { executable: "python3", argsPrefix: [], mode: "dev-python" } }),
+      runPython: async () => ({ success: false, error: { code: "INVALID_CONFIG", message: "invalid config" } })
+    });
+    expect(result).toMatchObject({ success: false, error: { code: "INVALID_CONFIG" } });
+    expect(runNode).not.toHaveBeenCalled();
   });
 
   it("attempts temp config cleanup after success", async () => {
@@ -254,6 +285,16 @@ describe("runExporter process behavior", () => {
       expect(result.error.code).toBe("EXPORT_CANCELLED");
     }
     expect(child.kill).toHaveBeenCalled();
+  });
+});
+
+describe("Node fallback eligibility", () => {
+  it("accepts only unavailable/exporter-start failure codes", () => {
+    expect(shouldUseNodeFallback("EXPORTER_SIDECAR_NOT_FOUND")).toBe(true);
+    expect(shouldUseNodeFallback("EXPORTER_SPAWN_FAILED")).toBe(true);
+    expect(shouldUseNodeFallback("INVALID_CONFIG")).toBe(false);
+    expect(shouldUseNodeFallback("EXPORT_TIMEOUT")).toBe(false);
+    expect(shouldUseNodeFallback("OUTPUT_WRITE_FAILED")).toBe(false);
   });
 });
 
