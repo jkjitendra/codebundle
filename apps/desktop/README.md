@@ -55,6 +55,8 @@ process.resourcesPath/sidecars/codebundle-exporter
 process.resourcesPath/sidecars/codebundle-exporter.exe
 ```
 
+The Python sidecar (or local Python in development) remains the primary exporter. If it is missing, not executable, not installed, or cannot be launched, the main process falls back to a local Node exporter. The fallback reads selected files only during export, makes no network or Git calls, and formats Git/Git Diff metadata already supplied by the app. It does not replace required sidecar build and verification before packaging.
+
 Build the sidecar on the target OS:
 
 ```bash

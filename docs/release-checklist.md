@@ -35,7 +35,7 @@ npm run sidecar:verify
 npm run package:dir
 ```
 
-`sidecar:build` removes stale sidecar/PyInstaller output before building and reports the artifact size. `sidecar:verify` runs an isolated real export through the built executable, validates its single JSON stdout result and generated content, bounds stderr, and removes its temporary fixture. `package:dir` creates an unpacked app for local smoke testing and fails clearly if `resources/sidecars/current/codebundle-exporter*` is missing or fails verification.
+`sidecar:build` removes stale sidecar/PyInstaller output before building and reports the artifact size. `sidecar:verify` runs an isolated real export through the built executable, validates its single JSON stdout result and generated content, bounds stderr, and removes its temporary fixture. `package:dir` creates an unpacked app for local smoke testing and fails clearly if `resources/sidecars/current/codebundle-exporter*` is missing or fails verification. The desktop Node fallback is runtime resilience only; it does not waive these release requirements.
 
 ## Create A Release
 

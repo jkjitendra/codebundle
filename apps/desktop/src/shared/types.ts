@@ -173,6 +173,9 @@ export interface RunExportSuccess {
   success: true;
   outputFile: string;
   summary: ExporterSummary;
+  /** Present only when the local Node exporter recovered from Python unavailability. */
+  exporter?: "python" | "node-fallback";
+  fallbackReason?: string;
 }
 
 export interface RunExportFailure {

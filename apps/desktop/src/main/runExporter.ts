@@ -9,6 +9,7 @@ import {
   type ExporterCommandResolverOptions,
   type ExporterCommandResolutionResult
 } from "./exporterCommandResolver";
+import { runNodeExporter, type RunNodeExporterOptions } from "./nodeExporter";
 
 const DEFAULT_TIMEOUT_MS = 120_000;
 
@@ -23,6 +24,7 @@ export interface RunExporterOptions {
   resolveExporterCommand?: () => Promise<ExporterCommandResolutionResult>;
   exporterCommandOptions?: ExporterCommandResolverOptions;
   runPython?: (options: RunPythonExporterOptions) => Promise<RunExportResult>;
+  runNode?: (config: CodeBundleExportConfig, options: RunNodeExporterOptions) => Promise<RunExportResult>;
   cleanupTempConfig?: (tempConfigPath: string) => Promise<void>;
   cleanupOldTempConfigs?: () => Promise<void>;
   signal?: AbortSignal;
@@ -57,6 +59,14 @@ export async function runExporter(input: unknown, options: RunExporterOptions = 
     }
     const exporterCommand = await (options.resolveExporterCommand ?? (() => resolveExporterCommand(options.exporterCommandOptions)))();
     if (!exporterCommand.success) {
+      if (shouldUseNodeFallback(exporterCommand.error.code)) {
+        const fallback = await (options.runNode ?? runNodeExporter)(prepared.config, { fallbackReason: exporterCommand.error.code });
+        if (fallback.success) {
+          await (options.cleanupTempConfig ?? cleanupTempConfig)(tempConfigPath);
+          tempConfigPath = null;
+        }
+        return fallback;
+      }
       return exporterCommand;
     }
 
@@ -67,6 +77,15 @@ export async function runExporter(input: unknown, options: RunExporterOptions = 
       timeoutMs: options.timeoutMs ?? DEFAULT_TIMEOUT_MS,
       signal: options.signal
     });
+
+    if (!result.success && shouldUseNodeFallback(result.error.code)) {
+      const fallback = await (options.runNode ?? runNodeExporter)(prepared.config, { fallbackReason: result.error.code });
+      if (fallback.success) {
+        await (options.cleanupTempConfig ?? cleanupTempConfig)(tempConfigPath);
+        tempConfigPath = null;
+      }
+      return fallback;
+    }
 
     if (result.success) {
       await (options.cleanupTempConfig ?? cleanupTempConfig)(tempConfigPath);
@@ -141,7 +160,7 @@ export async function runPythonExporter(options: RunPythonExporterOptions): Prom
       }
       settled = true;
       clearTimeout(timer);
-      resolveResult(failure("EXPORTER_FAILED", "The Python exporter failed to start.", error.message));
+      resolveResult(failure("EXPORTER_SPAWN_FAILED", "The Python exporter could not be started.", safeDetails(error.message, "The exporter process could not be launched.")));
     });
     options.signal?.addEventListener("abort", cancelExport, { once: true });
     child.on("close", (exitCode) => {
@@ -154,6 +173,18 @@ export async function runPythonExporter(options: RunPythonExporterOptions): Prom
       resolveResult(parseExporterResult(stdout, stderr, exitCode));
     });
   });
+}
+
+const NODE_FALLBACK_ERROR_CODES = new Set([
+  "EXPORTER_SIDECAR_NOT_FOUND",
+  "EXPORTER_SIDECAR_NOT_EXECUTABLE",
+  "PYTHON_NOT_FOUND",
+  "EXPORTER_PYTHON_NOT_FOUND",
+  "EXPORTER_SPAWN_FAILED"
+]);
+
+export function shouldUseNodeFallback(errorCode: string): boolean {
+  return NODE_FALLBACK_ERROR_CODES.has(errorCode);
 }
 
 export function parseExporterResult(stdout: string, stderr: string, exitCode: number | null): RunExportResult {
