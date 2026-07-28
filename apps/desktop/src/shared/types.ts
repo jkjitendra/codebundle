@@ -3,6 +3,24 @@ export interface AppInfo {
   version: string;
 }
 
+export type UpdateStatus = "idle" | "unsupported" | "checking" | "available" | "not-available" | "downloading" | "downloaded" | "error";
+
+export interface UpdateState {
+  status: UpdateStatus;
+  message: string;
+  version?: string;
+  releaseName?: string;
+  releaseDate?: string;
+  percent?: number;
+  errorCode?: string;
+  lastCheckedAt?: number;
+}
+
+export interface InstallUpdateResult {
+  success: boolean;
+  error?: string;
+}
+
 export interface ScanProjectOptions {
   projectRoot: string;
   maxFileSizeKb: number;
@@ -355,6 +373,10 @@ export interface CodeBundleApi {
   savePreferences: (preferences: CodeBundlePreferences) => Promise<SavePreferencesResult>;
   getDefaultExcludes: () => Promise<string[]>;
   getAppInfo: () => Promise<AppInfo>;
+  getUpdateState: () => Promise<UpdateState>;
+  checkForUpdates: () => Promise<UpdateState>;
+  installUpdate: () => Promise<InstallUpdateResult>;
+  onUpdateStateChanged: (callback: (state: UpdateState) => void) => () => void;
   scanForSecrets: (options: SecretScanOptions) => Promise<SecretScanResult>;
   generatePreview: (options: GeneratePreviewOptions) => Promise<GeneratePreviewResult>;
   validateDroppedFolder: (path: string) => Promise<ValidateDroppedFolderResult>;
