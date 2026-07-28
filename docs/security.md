@@ -23,7 +23,7 @@ This MVP has no bundled Python sidecar and no Node-only exporter fallback. Pytho
 
 The Python exporter reads file contents only when the user runs an export. The Electron renderer does not read file contents.
 
-In development mode, Electron runs the exporter through local Python. In packaged mode, Electron runs the bundled sidecar executable. Both modes run locally and preserve the same stdout/stderr export contract.
+In development mode, Electron runs the exporter through local Python. In packaged mode, Electron runs the bundled sidecar executable. If that primary exporter is unavailable or cannot start, the Electron main process may use a local Node fallback exporter. It reads only selected files during export, uses no shell commands, network calls, telemetry, uploads, or Git commands, and formats only Git metadata already provided by the app. Ordinary export/config failures do not trigger this fallback.
 
 The bundled sidecar is packaged app code. It should be treated as trusted local application code, signed with the app in production, and replaced only through the app release process.
 

@@ -26,6 +26,8 @@ python -m codebundle_exporter --config <temp-config-path>
 - Packaged exports do not require a user-installed Python runtime.
 - Packaged mode does not set `PYTHONPATH`.
 - The sidecar is resolved under `process.resourcesPath/sidecars/`.
+- The sidecar remains the primary exporter. If it is unavailable or cannot start, the desktop app can use a local Node fallback exporter for the same selected-file export.
+- The fallback is runtime resilience only: it does not remove sidecar build/verification requirements, perform network/Git commands, or read file contents outside an export.
 
 Expected packaged sidecar paths:
 
@@ -115,6 +117,8 @@ npm run package:dir
 ```
 
 `package:dir` and `package` run `sidecar:verify` before electron-builder. Packaging fails if the platform sidecar is missing or cannot complete the smoke export, so a broken package is not produced silently.
+
+The Node fallback currently supports selected files/folders, the existing simple exclude and root `.gitignore` behavior, file-size/binary/symlink handling, and supplied Git metadata. It intentionally does not make the Node exporter the default, support non-selected export modes, or add a full Git-compatible ignore engine.
 
 The package config copies files from:
 
