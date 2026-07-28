@@ -9,6 +9,7 @@ import type {
   GeneratePreviewResult,
   GitDiffOptions,
   GitDiffResult,
+  InstallUpdateResult,
   PrepareExportConfigResult,
   RecentProjectsResult,
   RevealPathResult,
@@ -19,6 +20,7 @@ import type {
   ScanProjectResult,
   SecretScanOptions,
   SecretScanResult,
+  UpdateState,
   ValidateDroppedFolderResult
 } from "../shared/types";
 
@@ -37,6 +39,14 @@ const api: CodeBundleApi = {
     ipcRenderer.invoke("codebundle:save-preferences", preferences) as Promise<SavePreferencesResult>,
   getDefaultExcludes: () => ipcRenderer.invoke("codebundle:get-default-excludes") as Promise<string[]>,
   getAppInfo: () => ipcRenderer.invoke("codebundle:get-app-info") as Promise<AppInfo>,
+  getUpdateState: () => ipcRenderer.invoke("codebundle:get-update-state") as Promise<UpdateState>,
+  checkForUpdates: () => ipcRenderer.invoke("codebundle:check-for-updates") as Promise<UpdateState>,
+  installUpdate: () => ipcRenderer.invoke("codebundle:install-update") as Promise<InstallUpdateResult>,
+  onUpdateStateChanged: (callback) => {
+    const listener = (_event: Electron.IpcRendererEvent, state: UpdateState) => callback(state);
+    ipcRenderer.on("codebundle:update-state-changed", listener);
+    return () => ipcRenderer.removeListener("codebundle:update-state-changed", listener);
+  },
   scanForSecrets: (options: SecretScanOptions) =>
     ipcRenderer.invoke("codebundle:scan-secrets", options) as Promise<SecretScanResult>,
   generatePreview: (options: GeneratePreviewOptions) =>

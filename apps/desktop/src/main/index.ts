@@ -1,8 +1,8 @@
 import { app, BrowserWindow, screen } from "electron";
 import { join } from "node:path";
-import { setupAutoUpdater } from "./appUpdater";
 import { cleanupOldTempConfigs } from "./configWriter";
 import { registerIpcHandlers } from "./ipcHandlers";
+import { initializeUpdateManager } from "./updateManager";
 
 let mainWindow: BrowserWindow | null = null;
 
@@ -41,7 +41,11 @@ app.whenReady().then(() => {
   registerIpcHandlers();
   void cleanupOldTempConfigs();
   createWindow();
-  setupAutoUpdater(() => mainWindow);
+  const updates = initializeUpdateManager({
+    isPackaged: app.isPackaged,
+    getWindows: () => BrowserWindow.getAllWindows()
+  });
+  updates.scheduleStartupCheck();
 
   app.on("activate", () => {
     if (BrowserWindow.getAllWindows().length === 0) {

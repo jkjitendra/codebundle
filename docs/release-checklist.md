@@ -70,6 +70,8 @@ The release workflow also uploads electron-updater metadata files:
 
 These files must stay attached to the GitHub Release with the installer/package artifacts so installed apps can discover updates.
 
+Before publishing, verify **Check for Updates** in a packaged build when an older installed version and a newer test release are available. Development builds intentionally do not check for updates. Keep updater metadata attached even though the runtime has a local Node export fallback; packaging still requires the verified Python sidecar.
+
 ## User Download Guidance
 
 Latest release page:

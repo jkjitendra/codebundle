@@ -1,5 +1,6 @@
 export type {
   AppInfo,
+  InstallUpdateResult,
   CodeBundleApi,
   CodeBundleConfigPreview,
   CodeBundleExportConfig,
@@ -49,5 +50,7 @@ export type {
   SecretScanResult,
   ValidateDroppedFolderFailure,
   ValidateDroppedFolderResult,
-  ValidateDroppedFolderSuccess
+  ValidateDroppedFolderSuccess,
+  UpdateState,
+  UpdateStatus
 } from "../../shared/types";
