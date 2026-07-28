@@ -56,7 +56,7 @@ python -m codebundle_exporter --config shared/codebundle.config.example.json
 
 Selecting a recent project fills the Project Folder input only; it does not scan automatically. A project is added to Recent Projects after a successful scan.
 
-Development mode requires Python 3.10+. You can set `CODEBUNDLE_PYTHON_PATH` to point at a specific Python executable. Public packaged builds use the bundled exporter sidecar.
+Development mode requires Python 3.10+. You can set `CODEBUNDLE_PYTHON_PATH` to point at a specific Python executable. Public packaged builds use the bundled exporter sidecar. If the primary Python exporter is unavailable or cannot start, the desktop app can complete the same local export with its built-in Node fallback; Python remains the default exporter.
 
 ## Desktop Features
 
