@@ -12,6 +12,7 @@ import { ProjectPicker } from "./components/ProjectPicker";
 import { SavedExportProfiles } from "./components/SavedExportProfiles";
 import { SelectedFilesModal } from "./components/SelectedFilesModal";
 import { SecretScanWarning } from "./components/SecretScanWarning";
+import { UpdateStatus } from "./components/UpdateStatus";
 import { restoreProfileSelection } from "./lib/profileSelection";
 import { buildGitDiffSelection } from "./lib/gitDiffSelection";
 import {
@@ -41,6 +42,7 @@ import type {
   SavedExportProfile,
   ScanProjectResult,
   SecretScanResult,
+  UpdateState,
   ValidateDroppedFolderResult
 } from "./lib/types";
 
@@ -139,6 +141,7 @@ export default function App(): JSX.Element {
   const [defaultExcludes, setDefaultExcludes] = useState<string[]>([]);
   const [excludeText, setExcludeText] = useState("");
   const [appInfo, setAppInfo] = useState<AppInfo | null>(null);
+  const [updateState, setUpdateState] = useState<UpdateState>({ status: "idle", message: "Check for updates when ready." });
   const [scanResult, setScanResult] = useState<ScanProjectResult | null>(null);
   const [selection, setSelection] = useState(() => createEmptySelection());
   const [expandedFolders, setExpandedFolders] = useState<Set<string>>(() => new Set());
@@ -243,12 +246,13 @@ export default function App(): JSX.Element {
 
     async function loadBridgeData(): Promise<void> {
       try {
-        const [rules, info, preferences, recent, profiles] = await Promise.all([
+        const [rules, info, preferences, recent, profiles, updates] = await Promise.all([
           window.codeBundle.getDefaultExcludes(),
           window.codeBundle.getAppInfo(),
           window.codeBundle.getPreferences(),
           window.codeBundle.getRecentProjects(),
-          window.codeBundle.getExportProfiles()
+          window.codeBundle.getExportProfiles(),
+          window.codeBundle.getUpdateState()
         ]);
 
         if (isMounted) {
@@ -256,6 +260,7 @@ export default function App(): JSX.Element {
           setAppInfo(info);
           setRecentProjects(recent.projects);
           setExportProfiles(profiles.profiles);
+          setUpdateState(updates);
           setProjectFolder(preferences.recentProjectFolder);
           setOutputFile(preferences.recentOutputFile);
           setMaxFileSizeKb(preferences.maxFileSizeKb);
@@ -278,6 +283,17 @@ export default function App(): JSX.Element {
       isMounted = false;
     };
   }, []);
+
+  useEffect(() => window.codeBundle.onUpdateStateChanged(setUpdateState), []);
+
+  async function checkForUpdates(): Promise<void> {
+    setUpdateState(await window.codeBundle.checkForUpdates());
+  }
+
+  async function installUpdate(): Promise<void> {
+    const result = await window.codeBundle.installUpdate();
+    if (!result.success) setUpdateState((current) => ({ ...current, status: "error", message: result.error ?? "Could not restart to install the update." }));
+  }
 
   useEffect(() => {
     if (!preferencesLoaded) {
@@ -1054,6 +1070,7 @@ export default function App(): JSX.Element {
 
         {warnings.length > 0 ? <div style={styles.warning}>{warnings.join(" ")}</div> : null}
         {error ? <div style={styles.error}>{error}</div> : null}
+        <UpdateStatus state={updateState} onCheck={() => void checkForUpdates()} onInstall={() => void installUpdate()} />
 
         <div style={styles.grid}>
           <div style={styles.leftColumn}>
