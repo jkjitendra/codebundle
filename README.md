@@ -13,6 +13,8 @@ It has three local execution paths:
 With the desktop app, you can scan local projects, select files and folders, estimate export size and tokens, preview the export, get local secret warnings before preview/export, drag and drop a project folder, reuse recent projects, and export to Markdown or text.
 
 CodeBundle is local-first. It does not upload project files, does not require cloud services for export, and does not store secrets in app preferences, recent-project metadata, or saved-profile metadata.
+
+Packaged desktop builds can check the configured GitHub Release feed for application updates. Development builds never check for updates. Update checks do not upload project files or source code.
 The desktop app calls the Python CLI on the same machine.
 
 Status: MVP development build with release packaging foundation. Development mode requires Node/npm, Python 3.10+, and access to `exporter-python`. Public desktop builds include the Electron runtime and a bundled exporter sidecar so installed users do not manually install Python, Node, npm, Python packages, or project dependencies.

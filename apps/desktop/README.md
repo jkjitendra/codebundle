@@ -81,6 +81,12 @@ npm run package:dir
 
 The package scripts do not silently build the sidecar. They verify the sidecar with a real smoke export before running electron-builder, so packaging fails clearly if `resources/sidecars/current/codebundle-exporter*` is missing or broken. Packaged users do not need Python; development mode still uses local Python and `PYTHONPATH`.
 
+## Updates
+
+Only packaged builds check GitHub Releases for app updates. Use **Check for Updates** in the app to check manually; development builds show that updates are available only in packaged builds and make no update network request. After an update downloads, choose **Restart to Install** or continue using the app. Update checks never upload project files or source code.
+
+End-to-end update testing requires an installed older package, a newer GitHub Release with a matching version/tag, and the updater metadata attached to that release. Signing and notarization are separate work.
+
 Generate app icons after branding source changes:
 
 ```bash

@@ -27,6 +27,10 @@ In development mode, Electron runs the exporter through local Python. In package
 
 The bundled sidecar is packaged app code. It should be treated as trusted local application code, signed with the app in production, and replaced only through the app release process.
 
+## Application Updates
+
+Only packaged desktop builds may contact the configured GitHub Release provider to check for application updates. Development builds do not perform update network checks. Update requests do not include project files, selected paths, file contents, source code, account data, telemetry, or credentials. The renderer receives only a small sanitized update status and never receives `autoUpdater` APIs or raw updater errors. Installing a downloaded update requires an explicit user restart action. Code signing and notarization remain separate work.
+
 The desktop app writes a temporary JSON config in the OS temp directory before export. The temp config contains paths, selection lists, format, limits, and exclude patterns. It does not contain file contents.
 
 Successful exports attempt to remove their temp config. Failed exports may leave the temp config for debugging. Only files matching `codebundle-*.codebundle.tmp.json` should be considered CodeBundle temp configs.
