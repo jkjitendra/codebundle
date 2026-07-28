@@ -11,6 +11,7 @@ import { addRecentProject, readRecentProjects, removeRecentProject, validateRece
 import { runExporter } from "./runExporter";
 import { scanProject } from "./scanFiles";
 import { scanFilesForSecrets } from "./secretScanner";
+import { checkForUpdatesManually, getUpdateState, installDownloadedUpdate } from "./updateManager";
 import type { ExportProfilesResult, RecentProjectsResult } from "../shared/types";
 
 let currentExportController: AbortController | null = null;
@@ -154,6 +155,10 @@ export function registerIpcHandlers(): void {
     name: app.getName(),
     version: app.getVersion()
   }));
+
+  ipcMain.handle("codebundle:get-update-state", () => getUpdateState());
+  ipcMain.handle("codebundle:check-for-updates", () => checkForUpdatesManually());
+  ipcMain.handle("codebundle:install-update", () => installDownloadedUpdate());
 
   ipcMain.handle("codebundle:get-preferences", async () => readPreferences(app.getPath("userData")));
 
