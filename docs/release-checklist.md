@@ -100,18 +100,27 @@ Release notes should state that CodeBundle runs locally:
 
 ## Signing And Notarization
 
-Current CI artifacts are unsigned beta artifacts. Before a stable public launch, configure:
+For a credentialed stable release, configure GitHub repository secrets:
 
-- macOS Developer ID signing.
-- macOS notarization.
-- Windows Authenticode signing.
-- Release checksums.
+- macOS: `CSC_LINK`, `CSC_KEY_PASSWORD`, `APPLE_ID`, `APPLE_APP_SPECIFIC_PASSWORD`, and `APPLE_TEAM_ID`.
+- Windows: `WINDOWS_CSC_LINK` and `WINDOWS_CSC_KEY_PASSWORD`.
 
-Unsigned builds may trigger operating system warnings.
+The release workflow logs whether the signed path is enabled without printing secret values. It builds unsigned beta artifacts when secrets are absent. Set repository variable `REQUIRE_CODE_SIGNING=true` only when macOS and Windows signing credentials are mandatory; missing complete credentials then fail the applicable release job. Do not commit certificate files, private keys, API keys, or passwords.
+
+For every credentialed release, confirm:
+
+1. Package version and `v*` tag match.
+2. Per-OS sidecars were built and verified.
+3. `latest-mac.yml`, `latest.yml`, and `latest-linux.yml` are attached.
+4. macOS app, sidecar, and stapled ticket pass `scripts/verify-macos-signing.sh`.
+5. Windows NSIS and portable artifacts report `Valid` in `Get-AuthenticodeSignature`.
+6. No certificate or credential material appears in the worktree or release artifacts.
+
+Linux artifacts remain unsigned in this phase. Unsigned beta builds may trigger operating-system warnings. See [Code Signing and Notarization](code-signing-and-notarization.md) for the owner runbook.
 
 ## Dependency Audit
 
-Desktop dependency audit is clean after the targeted security upgrade. See `desktop-security-upgrade.md`.
+`npm audit --omit=dev` is clean. As of the Phase 13 preflight, full `npm audit` reports 16 high-severity findings in development/build tooling through electron-builder's dependency chain; its proposed complete remediation requires a breaking electron-builder change. Do not run `npm audit fix --force` as part of a release. Track that dependency migration separately and rerun the complete verification suite after it is planned.
 
 Before publishing a release, rerun:
 

@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import importlib.util
 import json
+import os
 import subprocess
 from pathlib import Path
 
@@ -120,3 +121,99 @@ def test_parse_single_json_object_rejects_invalid_or_multiple_stdout_values() ->
         verify_script.parse_single_json_object('{"success":true}\nnot-json')
     with pytest.raises(ValueError, match="not an object"):
         verify_script.parse_single_json_object("[]")
+
+
+def signing_environment(**overrides: str) -> dict[str, str]:
+    environment = dict(os.environ)
+    for key in (
+        "REQUIRE_CODE_SIGNING",
+        "CSC_LINK",
+        "CSC_KEY_PASSWORD",
+        "APPLE_ID",
+        "APPLE_APP_SPECIFIC_PASSWORD",
+        "APPLE_TEAM_ID",
+        "WINDOWS_CSC_LINK",
+        "WINDOWS_CSC_KEY_PASSWORD",
+    ):
+        environment.pop(key, None)
+    environment.update(overrides)
+    return environment
+
+
+def test_release_signing_defaults_to_optional_unsigned_beta() -> None:
+    result = subprocess.run(
+        ["node", str(REPO_ROOT / "scripts" / "release-signing.mjs"), "--platform", "macos", "--json"],
+        check=False,
+        capture_output=True,
+        text=True,
+        env=signing_environment(),
+    )
+
+    assert result.returncode == 0
+    assert json.loads(result.stdout) == {
+        "platform": "macos",
+        "ready": False,
+        "certificateReady": False,
+        "notarization": None,
+        "message": "Signing credentials missing: building unsigned beta artifact.",
+    }
+
+
+def test_release_signing_requires_explicit_complete_credentials() -> None:
+    result = subprocess.run(
+        ["node", str(REPO_ROOT / "scripts" / "release-signing.mjs"), "--platform", "windows"],
+        check=False,
+        capture_output=True,
+        text=True,
+        env=signing_environment(REQUIRE_CODE_SIGNING="true"),
+    )
+
+    assert result.returncode == 1
+    assert "REQUIRE_CODE_SIGNING=true" in result.stderr
+    assert "Signing credentials missing" in result.stdout
+
+
+def test_release_signing_detects_complete_macos_signing_and_notarization() -> None:
+    result = subprocess.run(
+        ["node", str(REPO_ROOT / "scripts" / "release-signing.mjs"), "--platform", "macos", "--json"],
+        check=False,
+        capture_output=True,
+        text=True,
+        env=signing_environment(
+            CSC_LINK="fixture",
+            CSC_KEY_PASSWORD="fixture",
+            APPLE_ID="fixture@example.test",
+            APPLE_APP_SPECIFIC_PASSWORD="fixture",
+            APPLE_TEAM_ID="fixture",
+        ),
+    )
+
+    assert result.returncode == 0
+    assert json.loads(result.stdout) == {
+        "platform": "macos",
+        "ready": True,
+        "certificateReady": True,
+        "notarization": "apple-id",
+        "message": "Signing credentials detected: signed release path enabled.",
+    }
+
+
+def test_release_artifact_verifier_finds_platform_updater_metadata(tmp_path: Path) -> None:
+    (tmp_path / "latest-mac.yml").write_text("version: 0.1.17\n", encoding="utf-8")
+
+    result = subprocess.run(
+        [
+            "node",
+            str(REPO_ROOT / "scripts" / "verify-release-artifacts.mjs"),
+            "--platform",
+            "macos",
+            "--release-dir",
+            str(tmp_path),
+        ],
+        check=False,
+        capture_output=True,
+        text=True,
+    )
+
+    assert result.returncode == 0
+    assert "Verified updater metadata: latest-mac.yml" in result.stdout

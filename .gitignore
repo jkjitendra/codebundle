@@ -17,6 +17,8 @@ node_modules/
 out/
 release/
 .vite/
+# Electron build resources in apps/desktop/build are source-controlled configuration/icons.
+# Generated Electron output belongs in out/ and release/, never in build/.
 resources/sidecars/current/*
 !resources/sidecars/current/.gitkeep
 exporter-python/build/
@@ -24,3 +26,22 @@ exporter-python/dist/
 exporter-python/*.spec
 .idea
 *.vsix
+# Local environment files and release credentials are supplied only by protected storage or CI secrets.
+.env
+.env.*
+!.env.example
+!.env.sample
+*.p12
+*.pfx
+*.cer
+*.mobileprovision
+*.pem
+*.key
+*.p8
+*.crt
+*.csr
+*.der
+*.keystore
+*.jks
+*.p7b
+*.p7c

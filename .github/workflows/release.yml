@@ -21,7 +21,6 @@ jobs:
           - ubuntu-latest
 
     env:
-      CSC_IDENTITY_AUTO_DISCOVERY: "false"
       GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
     steps:
@@ -93,6 +92,52 @@ jobs:
         working-directory: apps/desktop
         run: npm run sidecar:verify
 
+      - name: Configure optional release signing
+        shell: bash
+        env:
+          REQUIRE_CODE_SIGNING: ${{ vars.REQUIRE_CODE_SIGNING || 'false' }}
+          CSC_LINK: ${{ secrets.CSC_LINK }}
+          CSC_KEY_PASSWORD: ${{ secrets.CSC_KEY_PASSWORD }}
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_APP_SPECIFIC_PASSWORD: ${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+          WINDOWS_CSC_LINK: ${{ secrets.WINDOWS_CSC_LINK }}
+          WINDOWS_CSC_KEY_PASSWORD: ${{ secrets.WINDOWS_CSC_KEY_PASSWORD }}
+        run: |
+          export REQUIRE_CODE_SIGNING="${REQUIRE_CODE_SIGNING:-false}"
+          node scripts/release-signing.mjs --platform "$RUNNER_OS"
+
+          case "$RUNNER_OS" in
+            macOS)
+              if [[ -n "$CSC_LINK" && -n "$CSC_KEY_PASSWORD" && -n "$APPLE_ID" && -n "$APPLE_APP_SPECIFIC_PASSWORD" && -n "$APPLE_TEAM_ID" ]]; then
+                {
+                  echo "CSC_LINK=$CSC_LINK"
+                  echo "CSC_KEY_PASSWORD=$CSC_KEY_PASSWORD"
+                  echo "APPLE_ID=$APPLE_ID"
+                  echo "APPLE_APP_SPECIFIC_PASSWORD=$APPLE_APP_SPECIFIC_PASSWORD"
+                  echo "APPLE_TEAM_ID=$APPLE_TEAM_ID"
+                  echo "CSC_IDENTITY_AUTO_DISCOVERY=true"
+                } >> "$GITHUB_ENV"
+              else
+                echo "CSC_IDENTITY_AUTO_DISCOVERY=false" >> "$GITHUB_ENV"
+              fi
+              ;;
+            Windows)
+              if [[ -n "$WINDOWS_CSC_LINK" && -n "$WINDOWS_CSC_KEY_PASSWORD" ]]; then
+                {
+                  echo "CSC_LINK=$WINDOWS_CSC_LINK"
+                  echo "CSC_KEY_PASSWORD=$WINDOWS_CSC_KEY_PASSWORD"
+                  echo "CSC_IDENTITY_AUTO_DISCOVERY=true"
+                } >> "$GITHUB_ENV"
+              else
+                echo "CSC_IDENTITY_AUTO_DISCOVERY=false" >> "$GITHUB_ENV"
+              fi
+              ;;
+            *)
+              echo "CSC_IDENTITY_AUTO_DISCOVERY=false" >> "$GITHUB_ENV"
+              ;;
+          esac
+
       - name: Package desktop app
         working-directory: apps/desktop
         shell: bash
@@ -117,6 +162,33 @@ jobs:
           done
 
           exit 1
+
+      - name: Verify updater metadata
+        working-directory: apps/desktop
+        shell: bash
+        run: node ../../scripts/verify-release-artifacts.mjs --platform "$RUNNER_OS" --release-dir release
+
+      - name: Verify macOS signature and notarization
+        if: runner.os == 'macOS'
+        working-directory: apps/desktop
+        shell: bash
+        run: |
+          if [[ -n "${CSC_LINK:-}" && -n "${CSC_KEY_PASSWORD:-}" && -n "${APPLE_ID:-}" && -n "${APPLE_APP_SPECIFIC_PASSWORD:-}" && -n "${APPLE_TEAM_ID:-}" ]]; then
+            bash ../../scripts/verify-macos-signing.sh release
+          else
+            echo "macOS signing credentials missing: unsigned beta artifact verification only."
+          fi
+
+      - name: Verify Windows signature
+        if: runner.os == 'Windows'
+        working-directory: apps/desktop
+        shell: pwsh
+        run: |
+          if ($env:CSC_LINK -and $env:CSC_KEY_PASSWORD) {
+            & ../../scripts/verify-windows-signature.ps1 -ReleaseDirectory release -RequireSigned
+          } else {
+            & ../../scripts/verify-windows-signature.ps1 -ReleaseDirectory release
+          }
 
       - name: List release files
         working-directory: apps/desktop

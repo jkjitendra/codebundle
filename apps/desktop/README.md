@@ -85,7 +85,7 @@ The package scripts do not silently build the sidecar. They verify the sidecar w
 
 Only packaged builds check GitHub Releases for app updates. Use **Check for Updates** in the app to check manually; development builds show that updates are available only in packaged builds and make no update network request. After an update downloads, choose **Restart to Install** or continue using the app. Update checks never upload project files or source code.
 
-End-to-end update testing requires an installed older package, a newer GitHub Release with a matching version/tag, and the updater metadata attached to that release. Signing and notarization are separate work.
+End-to-end update testing requires an installed older package, a newer GitHub Release with a matching version/tag, and the updater metadata attached to that release. Signed release requirements are documented in [Code Signing and Notarization](../../docs/code-signing-and-notarization.md).
 
 Generate app icons after branding source changes:
 
@@ -181,8 +181,8 @@ The app reads local path/status metadata only with `execFile`; it never reads pa
 
 ## Known Limitations
 
-- Signing and notarization are not implemented; CI artifacts are unsigned beta builds.
-- Desktop dependency audit is clean after the Electron/electron-builder/electron-vite/Vite security upgrade. See `../../docs/desktop-security-upgrade.md`.
+- Local builds and CI releases without credentials remain unsigned beta artifacts and can show operating-system warnings. Release CI signs/notarizes macOS and signs Windows artifacts when release-owner credentials are configured; see [Code Signing and Notarization](../../docs/code-signing-and-notarization.md).
+- Desktop production dependency audit (`npm audit --omit=dev`) is clean. The full audit has a separately tracked electron-builder development/build-tooling issue that requires a breaking migration; do not force-fix it during normal releases.
 - Sidecars must be built on the target OS or in platform-specific CI runners.
 - `.gitignore` support is simple and not full Git-compatible matching.
 - Export progress is coarse, not streamed from Python.
