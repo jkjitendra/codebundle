@@ -17,11 +17,22 @@ extraResources:
       - codebundle-exporter*
 mac:
   icon: build/icon.icns
+  category: public.app-category.developer-tools
+  hardenedRuntime: true
+  gatekeeperAssess: false
+  entitlements: build/entitlements.mac.plist
+  entitlementsInherit: build/entitlements.mac.inherit.plist
+  notarize: true
+  binaries:
+    - Contents/Resources/sidecars/codebundle-exporter
   target:
     - dmg
     - zip
 win:
   icon: build/icon.ico
+  signAndEditExecutable: true
+  signtoolOptions:
+    publisherName: "Jitendra"
   target:
     - nsis
     - portable
