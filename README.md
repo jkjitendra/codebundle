@@ -178,9 +178,9 @@ GitHub Actions builds macOS, Windows, and Linux artifacts, builds the platform P
 
 ## Current MVP Limitations
 
-- Production signing, notarization, and installer release flow are not implemented yet.
-- Current CI artifacts are unsigned beta builds.
-- Desktop dependency audit is clean after the Electron/electron-builder/electron-vite/Vite security upgrade. See `docs/desktop-security-upgrade.md`.
+- Release CI supports macOS Developer ID signing/notarization and Windows Authenticode signing when release-owner secrets are configured. Local and credential-free CI builds remain unsigned beta artifacts and can show OS warnings.
+- See [code signing and notarization](docs/code-signing-and-notarization.md) for release-owner prerequisites, verification, and unsigned-beta guidance.
+- Desktop production dependency audit (`npm audit --omit=dev`) is clean. The full audit has a separately tracked electron-builder development/build-tooling issue that requires a breaking migration; do not force-fix it during normal releases.
 - Sidecars must be built per target OS before packaging.
 - Development mode still needs Python 3.10+ and Node/npm.
 - `.gitignore` support is simple root `.gitignore` pattern support, not full Git-compatible matching.
